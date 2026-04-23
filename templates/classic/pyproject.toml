@@ -1,0 +1,46 @@
+# templates/classic/pyproject.toml
+#
+# Classic stack: black + isort + pylint. For most new projects, prefer the
+# ruff variant at ../ruff/. Use this variant if your team standardizes on
+# the older tool trio.
+#
+# Merge these blocks into your project's pyproject.toml. Leave out blocks
+# that don't apply (e.g. [tool.mypy] if you don't type-check).
+#
+# Project-specific blocks ([project], [build-system], [tool.setuptools])
+# are NOT in this template — they stay project-side.
+#
+# Replace <root> with your top-level package name and fill the layer rows
+# with your own packages. See python/PYTHON.md §10 for the update rules.
+
+[tool.black]
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint."MESSAGES CONTROL"]
+# Project-specific disables go here; keep this list short and justified.
+# disable = ["missing-module-docstring"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.importlinter]
+root_package = "<root>"
+
+[[tool.importlinter.contracts]]
+name = "<root>: layered DAG"
+type = "layers"
+layers = [
+    # top — consumers (depend on everything below)
+    "<root>.<consumer_a> | <root>.<consumer_b>",
+    # middle — data / types peers (independent of each other; may depend on leaves)
+    "<root>.<data_a> | <root>.<data_b>",
+    # leaf — foundation (no internal dependencies)
+    "<root>.<leaf>",
+]

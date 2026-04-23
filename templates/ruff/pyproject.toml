@@ -1,0 +1,44 @@
+# templates/ruff/pyproject.toml
+#
+# Merge these blocks into your project's pyproject.toml. Leave out blocks that
+# don't apply to your project (e.g. [tool.mypy] if you don't type-check).
+#
+# Project-specific blocks ([project], [build-system], [tool.setuptools]) are
+# NOT in this template — they stay project-side.
+#
+# Replace <root> with your top-level package name, and fill the layer rows
+# with your own packages. See python/PYTHON.md §10 for the update rules.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+output-format = "concise"
+
+[tool.ruff.lint]
+# E/F = pycodestyle+pyflakes; I = isort; N = naming; UP = pyupgrade; B = bugbear; SIM = simplify
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.black]
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.importlinter]
+root_package = "<root>"
+
+[[tool.importlinter.contracts]]
+name = "<root>: layered DAG"
+type = "layers"
+layers = [
+    # top — consumers (depend on everything below)
+    "<root>.<consumer_a> | <root>.<consumer_b>",
+    # middle — data / types peers (independent of each other; may depend on leaves)
+    "<root>.<data_a> | <root>.<data_b>",
+    # leaf — foundation (no internal dependencies)
+    "<root>.<leaf>",
+]

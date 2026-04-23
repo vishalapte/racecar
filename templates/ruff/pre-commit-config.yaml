@@ -1,0 +1,28 @@
+# Template: copy to <project_root>/.pre-commit-config.yaml (add the leading dot).
+# See python/PYTHON.md §10 for what to customize per project.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/seddonym/import-linter
+    rev: v2.1
+    hooks:
+      - id: import-linter
+
+  - repo: local
+    hooks:
+      - id: no-upward-imports-in-business-modules
+        name: SYSTEM.md §4 — business modules must not import from env layer directly
+        entry: python scripts/check_upward_imports.py
+        language: python
+        types: [python]
+        exclude: '(__main__|__init__)\.py$'

@@ -1,0 +1,27 @@
+# Template: copy to <project_root>/.pre-commit-config.yaml (add leading dot on copy).
+# Classic variant: black + isort + pylint. For most new projects, prefer the ruff variant.
+
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/seddonym/import-linter
+    rev: v2.1
+    hooks:
+      - id: import-linter
+
+  - repo: local
+    hooks:
+      - id: no-upward-imports-in-business-modules
+        name: SYSTEM.md §4 — business modules must not import from env layer directly
+        entry: python scripts/check_upward_imports.py
+        language: python
+        types: [python]
+        exclude: '(__main__|__init__)\.py$'
