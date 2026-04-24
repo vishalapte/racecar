@@ -231,13 +231,19 @@ python -m fubar.foo.alpha.data      # runs data.py if it has `if __name__ == "__
 
 New sub-packages must be manually added to the parent's `commands()` list. This is intentional. Dynamic discovery hides what the system can do. Explicit registration makes capabilities visible and auditable.
 
-When a new `__main__.py` is added, update the parent's `commands()` before merging.
+When a new `__main__.py` is added, update the parent's `commands()` before merging. The registration contract is mechanized by `scripts/check_cli_commands.py`; see §4.
 
 ## 4. Enforcement
 
 Enforcement here is local confirmation the owner can rely on, not a CI gate that replaces owner judgment — see [OWNERSHIP.md](../shared/OWNERSHIP.md).
 
-Checks 1–2 in [`README.md`](README.md) (acyclicity + direction) are enforced via `import-linter`; this file's §1 (no upward imports from business modules to the root package) is enforced via `scripts/check_upward_imports.py`. `pre-commit` orchestrates both. The per-project contract lives in `pyproject.toml`; the orchestrator config in `.pre-commit-config.yaml`.
+Three tools enforce the coherence rules:
+
+- `import-linter` checks acyclicity and direction ([`README.md`](README.md) checks 1–2).
+- `scripts/check_upward_imports.py` enforces §1 (no upward imports from business modules to the root package), file-by-file.
+- `scripts/check_cli_commands.py` enforces §3 (the `__main__.py` + `commands()` CLI contract) by walking the CLI tree, confirming every `python -m <pkg>` lists its registered children, and surfacing orphan `__main__.py` files that no parent registers.
+
+The first two are wired into `pre-commit` and run on every commit via `.pre-commit-config.yaml`. `check_cli_commands.py` is a full-tree audit — it shells out `python -m <pkg>` for every node, which is too expensive for a per-commit hook — so it runs via `make arch PKG=<path>`, in CI, or on-demand. The per-project contract (layers, forbidden edges) lives in `pyproject.toml` under `[tool.importlinter]`.
 
 For linter configuration and workflow (formatter-as-canonical, no inline suppressions, full-codebase scope), see [`../eng-review/PYTHON.md` §5 Linting & Verification](../eng-review/PYTHON.md#5-linting-verification).
 
@@ -249,7 +255,7 @@ Templates live in [`../templates/`](../templates/). To adopt on a new project:
 2. Copy all blocks from the chosen variant's `pyproject.toml` into your project's `pyproject.toml` (merge into an existing file if present). Skip blocks that don't apply (e.g. `[tool.mypy]` if you don't type-check).
 3. Copy the chosen variant's `pre-commit-config.yaml` to your project root as `.pre-commit-config.yaml` (add the leading dot on copy).
 4. Copy the chosen variant's `Makefile` to your project root.
-5. Copy `../templates/scripts/` to your project's `scripts/` directory (shared across both variants).
+5. Copy `scripts/` (inside `arch-coherence/`) to your project's `scripts/` directory (shared across both variants).
 6. Replace `<root>` with your top-level package name, and fill the layer rows with your own packages.
 7. Install and enable:
    - Ruff variant: `pip install pre-commit ruff black mypy import-linter pytest && pre-commit install`

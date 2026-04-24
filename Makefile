@@ -1,5 +1,4 @@
-# Root Makefile — self-verification for this framework's own docs.
-# `make check-docs` runs the mechanical pre-pass defined in doc-coherence/README.md.
+# Root Makefile — self-verification for this framework's own docs and scripts.
 
 # Auto-detect venv (order: .venv, venv, ../venv). If found, prepend its
 # bin/ to PATH so tooling resolves to the venv rather than system binaries.
@@ -9,10 +8,17 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: check-docs help
+.PHONY: check-docs test check help
 
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
 
+test:
+	$(PYTHON) -m pytest arch-coherence/tests
+
+check: check-docs test
+
 help:
 	@echo "make check-docs - run the mechanical pre-pass on this repo's own docs"
+	@echo "make test       - run the test suites under each skill"
+	@echo "make check      - run check-docs and test"

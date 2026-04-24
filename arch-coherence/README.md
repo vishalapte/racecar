@@ -142,7 +142,7 @@ Verdict: Rework. Root 1 must resolve before anything else; root 2 next; issue 3 
 
 ## Enforcement
 
-For how the axioms above are verified mechanically in Python projects — `import-linter` contracts, `check_upward_imports.py`, `pre-commit` orchestration — see [PYTHON.md §4 Enforcement](PYTHON.md#4-enforcement).
+For how the axioms above are verified mechanically in Python projects, see [PYTHON.md §4 Enforcement](PYTHON.md#4-enforcement).
 
 ## Voice
 

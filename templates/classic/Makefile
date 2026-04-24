@@ -10,6 +10,10 @@ ifdef VENV
   export PATH := $(abspath $(VENV))/bin:$(PATH)
 endif
 
+# Package path or dotted name to audit for architectural coherence.
+# Override with:  make arch PKG=my_package
+PKG ?= src
+
 .PHONY: check fix fmt fmt-check lint test typecheck arch clean help
 
 check: fmt-check lint test typecheck arch
@@ -36,6 +40,8 @@ typecheck:
 
 arch:
 	lint-imports
+	python scripts/check_upward_imports.py $$(find $(PKG) -name '*.py')
+	python scripts/check_cli_commands.py $(PKG)
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
@@ -50,5 +56,5 @@ help:
 	@echo "make lint      - pylint + custom arch-coherence/PYTHON.md §1 check"
 	@echo "make test      - pytest"
 	@echo "make typecheck - mypy"
-	@echo "make arch      - lint-imports (DAG check)"
+	@echo "make arch      - full arch audit: lint-imports + §1 upward imports + §3 CLI tree. Scope: PKG=$(PKG) (override: make arch PKG=<path>)"
 	@echo "make clean     - remove cache dirs"

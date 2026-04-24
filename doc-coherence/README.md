@@ -77,7 +77,7 @@ Four checks, two of them mechanized:
 
 ## Mental models
 
-**Resolver pattern.** Short routing tables beat long content dumps. When a file grows past a screen, it is probably an index disguised as content. A resolver says "for X, see A; for Y, see B" — it does not explain X.
+**Resolver pattern.** Short routing tables beat long content dumps. When a file grows past a screen, it is probably an index disguised as content. A resolver says "for X, see A; for Y, see B" — it does not explain X, and it does not preview X's contents in the pointer line either. Enumerating a subset of A ("— tools P, Q, R — see A") clones content into a second home that drifts whenever A changes, serves no reader — the one who cares clicks through, the one who doesn't shouldn't be skimming an inventory — and creates a maintenance debt for zero value.
 
 **Abstract-concrete split.** Axioms live separate from implementation. Do not fake generality by sprinkling specific examples into an abstract file — the file loses its abstraction without gaining grounding. If the examples are load-bearing, the file is concrete — rename it.
 
@@ -117,6 +117,7 @@ Scan for these. One line each.
 
 - **Evidence over vibes.** Cite the file and line.
 - **Merge when duplication; split when concerns diverge.** Two files with overlapping rules should be one. One file with two unrelated concerns should be two.
+- **Pointers don't preview.** A line routing to §N should route and stop. Previewing clones a subset of §N into a second home that drifts every time §N changes.
 - **Challenge the label.** If a file is labeled generic but eighty percent of it assumes one specific tool, the label is the bug. Rename before refactoring.
 - **Prefer actionable over aspirational.** A rule is something you can fail.
 - **Name the claim, then support it.** State the assertion plainly. Then cite the evidence.

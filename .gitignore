@@ -1,2 +1,11 @@
 .DS_Store
 .idea/
+
+# Python byte-compiled / optimized / dll files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# virtual environments
+.venv/
+venv/
