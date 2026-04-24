@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Mechanical pre-pass check for markdown docs in any repo.
+
+Implements the checks `doc-coherence/README.md` prescribes as its mechanical
+pre-pass. Nothing in this script is repo-specific — it discovers the repo
+root and layout at runtime, so the same file works for racecar and for any
+consumer that adopts the doc-coherence standard.
+
+Checks:
+
+  1. Every `[text](path)` in a .md file resolves — path exists, and every
+     `#anchor` matches a heading slug in the target .md file.
+  2. Every `FILENAME.md §N` cited in a non-markdown file (scripts, Makefile,
+     *.toml, *.yaml) points to a heading at that number in the target file.
+     An optional directory prefix (`<dir>/FILENAME.md §N`) disambiguates
+     when the same basename lives in more than one directory.
+
+Matches inside inline code spans (single backticks) and triple-backtick
+fenced code blocks are ignored — they are literals, not links.
+
+Discovery:
+  - REPO_ROOT is the nearest ancestor of the current working directory
+    containing a `.git` entry (same rule `git` itself uses). Falls back to
+    CWD if no `.git` is found — so the script also runs against plain
+    directories that aren't git repos.
+  - DOC_SEARCH_DIRS is REPO_ROOT plus every top-level non-hidden directory
+    under it, sorted alphabetically for deterministic first-match behavior.
+  - Hidden directories (names starting with `.`) are skipped everywhere.
+
+Exit 0 if clean, 1 if any drift is found.
+
+Usage:
+    python3 <path-to>/check_docs.py
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+
+def _find_repo_root() -> Path:
+    start = Path.cwd()
+    for p in [start, *start.parents]:
+        if (p / ".git").exists():
+            return p
+    return start
+
+
+REPO_ROOT = _find_repo_root()
+
+# Search order when a `FILENAME.md §N` citation carries no directory prefix.
+# First match wins; cite with a prefix (`<dir>/FILENAME.md §N`) to target a
+# specific directory when the basename is not unique.
+DOC_SEARCH_DIRS = tuple(
+    [REPO_ROOT]
+    + sorted(
+        (d for d in REPO_ROOT.iterdir() if d.is_dir() and not d.name.startswith(".")),
+        key=lambda p: p.name,
+    )
+)
+
+
+def _is_hidden(path: Path) -> bool:
+    try:
+        rel = path.relative_to(REPO_ROOT)
+    except ValueError:
+        return False
+    return any(part.startswith(".") for part in rel.parts)
+
+
+def _heading_slugs(text: str) -> set[str]:
+    """Return the GitHub-style heading slugs for a markdown document."""
+    slugs: set[str] = set()
+    in_fence = False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = re.match(r"^#+\s+(.+?)\s*$", line)
+        if not m:
+            continue
+        h = m.group(1).lower()
+        h = re.sub(r"[`'\"]", "", h)
+        h = re.sub(r"[^\w\s-]", "", h)
+        slugs.add(re.sub(r"\s+", "-", h).strip("-"))
+    return slugs
+
+
+def _section_numbers(text: str) -> set[str]:
+    """Return the top-level section numbers (e.g. {'1','2'} from '## 1. Foo')."""
+    return {m.group(1) for line in text.splitlines() if (m := re.match(r"^##\s+(\d+)\.", line))}
+
+
+def _check_links(md_path: Path) -> list[str]:
+    errors: list[str] = []
+    text = md_path.read_text(encoding="utf-8")
+    in_fence = False
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for m in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", line):
+            target = m.group(2)
+            if target.startswith(("http://", "https://", "mailto:")):
+                continue
+            # skip matches inside inline code spans (odd backtick parity before match)
+            if line[: m.start()].count("`") % 2 == 1:
+                continue
+            path_part, _, anchor = target.partition("#")
+            target_file = (md_path.parent / path_part).resolve() if path_part else md_path
+            if path_part and not target_file.exists():
+                errors.append(f"{md_path}:{lineno}: broken link — {target}")
+                continue
+            if anchor and target_file.suffix == ".md":
+                slugs = _heading_slugs(target_file.read_text(encoding="utf-8"))
+                if anchor not in slugs:
+                    errors.append(f"{md_path}:{lineno}: missing anchor — {target}")
+    return errors
+
+
+def _find_doc(fname: str) -> Path | None:
+    for d in DOC_SEARCH_DIRS:
+        candidate = d / fname
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _check_section_citations(path: Path) -> list[str]:
+    errors: list[str] = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, PermissionError, OSError):
+        return errors
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for m in re.finditer(r"(?:([\w-]+)/)?([A-Z_]+\.md)\s*§\s*(\d+)", line):
+            prefix, fname, num = m.group(1), m.group(2), m.group(3)
+            if prefix:
+                target: Path | None = REPO_ROOT / prefix / fname
+                if not target.is_file():
+                    errors.append(f"{path}:{lineno}: cites missing file — {prefix}/{fname} §{num}")
+                    continue
+            else:
+                target = _find_doc(fname)
+                if target is None:
+                    errors.append(f"{path}:{lineno}: cites missing file — {fname} §{num}")
+                    continue
+            nums = _section_numbers(target.read_text(encoding="utf-8"))
+            if num not in nums:
+                label = f"{prefix}/{fname}" if prefix else fname
+                errors.append(
+                    f"{path}:{lineno}: {label} §{num} stale — target has sections {sorted(nums)}"
+                )
+    return errors
+
+
+def main() -> int:
+    errors: list[str] = []
+    for md_path in REPO_ROOT.rglob("*.md"):
+        if _is_hidden(md_path):
+            continue
+        errors.extend(_check_links(md_path))
+    for path in REPO_ROOT.rglob("*"):
+        if path.is_dir() or _is_hidden(path):
+            continue
+        if path.suffix == ".md":
+            continue
+        if path.suffix in (".py", ".yaml", ".toml") or path.name == "Makefile":
+            errors.extend(_check_section_citations(path))
+    if errors:
+        for e in errors:
+            print(e, file=sys.stderr)
+        print(f"\n{len(errors)} doc drift finding(s).", file=sys.stderr)
+        return 1
+    print("check_docs: OK")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

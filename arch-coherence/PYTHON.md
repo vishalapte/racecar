@@ -1,77 +1,34 @@
-# Python Standards
+# Python — Architectural Coherence
 
-Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first
+Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
 
-Python-specific standards. For language-agnostic architectural axioms, see [SYSTEM.md](SYSTEM.md). For Django specifics, see [DJANGO.md](DJANGO.md).
+The Python-specific expression of architectural coherence. For the language-agnostic axioms this section derives from, see [`README.md`](README.md). For Python engineering hygiene — naming, formatting, testing, linting workflow, Definition of Done — see [`../eng-review/PYTHON.md`](../eng-review/PYTHON.md). For Django-specific coherence, see [`DJANGO.md`](DJANGO.md).
 
 Sections are ordered as a DAG — most independent first, most dependent last.
 
-## 1. Development Strategy
+## 1. Module Structure
 
-Mindset and process. No code dependencies — this is how you work, not what you write.
+How code is organized into files and packages. Every package has two specialty files — `__init__.py` and `__main__.py` — with opposite roles on the dependency graph. This section owns the Python-specific shape of the direction axiom in [check 2 Direction](README.md#2-direction).
 
-- **Incremental execution.** Start with a minimal, working setup before adding complexity. Prove the concept first.
-- **Fail fast.** Use explicit exception handling. Avoid silent failures or broad catch-all blocks.
+**`__init__.py` — the package's face to the outside.** It declares what the package IS when imported. It is for orchestration and re-exports only; business logic lives in named modules. If `__init__.py` has more than a few re-export lines, move the logic to a named module and re-export. `__init__.py` may import upward — only to the environment layer (see [the environment-layer exception](README.md#environment-layer-exception)). When a child package needs inherited state, its `__init__.py` imports from the environment layer and re-exports into its own namespace.
 
-## 2. Naming
+**`__main__.py` — the execution entry point.** It imports outward, reaching down into the package's own subtree to dispatch work. Its dependencies go inward-subtree only; never upward to a parent package (env-layer carve-out excepted). For the full `__main__.py` + `commands()` pattern that makes this structural, see §3.
 
-What things are called. Independent of structure and tooling.
+**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](README.md#2-direction)), or read inherited state through their own package's `__init__.py` — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
 
-- **Names describe function, not format.** A module that parses or writes data is named `data.py`, not `yaml.py` — file format is auto-detected from extension, not assumed.
-- **Names are precise.** Avoid generic labels like `utils` or `helpers` when a more specific name applies.
-- **Non-private functions do not start with `_`.** The underscore prefix is reserved for genuinely private methods (class name-mangling, module internals not used outside the file). If a function is called from another module, it is not private.
-- **Type hints.** Use comprehensive Python type hints. Prefer `pathlib.Path` over `os.path`.
-
-## 3. Formatting
-
-Tool-enforced style. Independent of architecture. Two variants; pick one per project.
-
-**Ruff variant** (recommended for new projects):
-- **Formatter is canonical.** `ruff format` is enforced (black-compatible output). No manual style overrides.
-- **Import ordering.** `ruff check --select I` enforces stdlib → third-party → local.
-
-**Classic variant:**
-- **Formatter is canonical.** `black` formatting is enforced.
-- **Import ordering.** `isort` groups: stdlib → third-party → local.
-
-Both variants:
-- **Strings.** Use f-strings. No `%` or `.format()`.
-
-## 4. Testing
-
-- **Test-first (TDD).** For new features, write a basic test first to define expected behavior.
-- `pytest` or `unittest` for all tests.
-
-## 5. Module Structure
-
-How code is organized into files and packages. Depends on naming conventions being settled.
-
-- Package-level entry files are for orchestration and re-exports, not business logic. Logic lives in named modules.
-- `__init__.py` is for module orchestration and re-exports only. If `__init__.py` has more than a few re-export lines, move the logic to a named module and re-export.
-
-## 6. Imports
+## 2. Imports
 
 How modules connect to each other. Depends on module structure being sound.
 
-**Direction.** Imports flow outward or downward only. This is an architectural rule — see [SYSTEM.md §1](SYSTEM.md#1-import-direction-root-axiom) for the axiom and rationale. This section covers the file-level enforcement.
+**Direction.** Imports flow outward or downward only. This is an architectural rule — see [check 2 Direction](README.md#2-direction) for the axiom and rationale. This section covers the file-level enforcement.
 
 **Top-level only.** All imports live at the top of the file. No exceptions. Lazy imports — imports inside functions, methods, or conditional blocks — are never acceptable. They are a band-aid over a structural problem. If moving an import to the top of the file breaks something, that breakage is the real bug. Diagnose it: extract shared code into a third module, restructure the dependency graph, or flag it for discussion. Do not bury it inside a function and move on.
 
-**Circular dependencies.** A lazy import is usually a symptom of a circular dependency that was papered over instead of resolved. The fix is structural. See [SYSTEM.md §2](SYSTEM.md#2-no-circular-dependencies).
+**Circular dependencies.** A lazy import is usually a symptom of a circular dependency that was papered over instead of resolved. The fix is structural. See [check 1 Acyclicity](README.md#1-acyclicity-root-axiom).
 
-## 7. Linting & Verification
+## 3. CLI
 
-Final gate. Depends on everything above being correct.
-
-- **Full-codebase scope.** Lint the entire project. Partial-set linting is not acceptable.
-- **Linter returns clean output.**
-  - Ruff variant: `ruff check` returns clean.
-  - Classic variant: `pylint` returns clean.
-- **No inline suppressions.** Neither `# noqa` (ruff/flake8), `# ruff: noqa`, `# pylint: disable=` (classic), nor `# fmt: off` / `# fmt: on` are acceptable. If the linter or formatter flags a problem, fix the code, not the suppression.
-
-## 8. CLI
-
-Builds on §5 Module Structure (package layout) and §6 Imports (outward-downward direction). The CLI pattern is the top layer of the dependency graph — entry points import downward, never from peers or ancestors.
+Builds on §1 Module Structure (package layout) and §2 Imports (outward-downward direction). The CLI pattern is the top layer of the dependency graph — entry points import downward, never from peers or ancestors.
 
 Recursive outward-only discovery. Every package that contains runnable commands must provide a `__main__.py` that (a) exposes a `commands()` function and (b) prints that list when invoked with no arguments.
 
@@ -79,7 +36,7 @@ Recursive outward-only discovery. Every package that contains runnable commands 
 
 **Packages are the preferred CLI entries; runnable modules are also valid.** A package CLI entry is a directory with a `__main__.py`. A `.py` module with an `if __name__ == "__main__":` block is also a valid entry (`python -m fubar.foo.alpha.data`). Prefer a package once the CLI grows past one file or needs its own sub-commands; keep a module for simple single-file tools.
 
-**Unidirectional relationship.** The dependency graph is parent → child only. Parents know about their children (by registering their names). Children never reference parents. This is the CLI-layer expression of the direction axiom in [SYSTEM.md §1](SYSTEM.md#1-import-direction-root-axiom).
+**Unidirectional relationship.** The dependency graph is parent → child only. Parents know about their children (by registering their names). Children never reference parents. This is the CLI-layer expression of the direction axiom in [check 2 Direction](README.md#2-direction).
 
 **Knowledge isolation.** Each `__main__.py` only declares what it directly contains — names of its immediate sub-packages (depth + 1). It does not enumerate grandchildren.
 
@@ -193,15 +150,14 @@ def main() -> None:
 
 
 def run(args: argparse.Namespace) -> None:
-    """Project-specific dispatch goes here."""
-    raise NotImplementedError("Implement dispatch for this CLI")
+    raise NotImplementedError("replace with project-specific dispatch")
 
 
 if __name__ == "__main__":
     main()
 ```
 
-Note: `_print_commands()` is duplicated verbatim in Patterns 1 and 2. This is a deliberate self-containment choice — each `__main__.py` stands alone with no shared utility module. The function is six lines; the coupling cost of sharing it exceeds the duplication cost.
+Note: `_print_commands()` must exist in every Pattern 1 and Pattern 2 `__main__.py`. The outward-downward rule ([check 2 Direction](README.md#2-direction)) forbids inheriting it from above; there is no guaranteed leaf below to reuse it from. The function is therefore explicit at every node — a direct expression of the architecture, not a duplication to be reconciled.
 
 ---
 
@@ -229,8 +185,7 @@ def main() -> None:
 
 
 def run(args: argparse.Namespace) -> None:
-    """Project-specific dispatch goes here."""
-    raise NotImplementedError("Implement dispatch for this CLI")
+    raise NotImplementedError("replace with project-specific dispatch")
 
 
 if __name__ == "__main__":
@@ -263,7 +218,7 @@ python -m fubar.foo.alpha.data      # runs data.py if it has `if __name__ == "__
 | Rule | Rationale |
 |------|-----------|
 | Packages are the preferred CLI entry; runnable `.py` modules with `if __name__ == "__main__":` are also valid | Packages scale to sub-commands; modules stay simple for single-file tools |
-| No inward references in `__main__.py` — no `from ..` | Prevents upward references that would couple children to parents (see [SYSTEM.md §1](SYSTEM.md#1-import-direction-root-axiom)) and mask circular deps (see [SYSTEM.md §2](SYSTEM.md#2-no-circular-dependencies)) |
+| No inward references in `__main__.py` — no `from ..` | Prevents upward references that would couple children to parents (see [check 2 Direction](README.md#2-direction)) and mask circular deps (see [check 1 Acyclicity](README.md#1-acyclicity-root-axiom)) |
 | `commands()` returns relative names, not full paths | `__package__` constructs the path; names stay readable |
 | `commands()` lists immediate children — sub-packages or runnable modules | Either is a valid invocation target via `python -m {parent}.{child}` |
 | Parents register child names explicitly — no dynamic discovery | Explicit registration; no invisible capabilities |
@@ -278,24 +233,15 @@ New sub-packages must be manually added to the parent's `commands()` list. This 
 
 When a new `__main__.py` is added, update the parent's `commands()` before merging.
 
-## 9. Definition of Done
+## 4. Enforcement
 
-After modifying code, verify:
+Enforcement here is local confirmation the owner can rely on, not a CI gate that replaces owner judgment — see [OWNERSHIP.md](../shared/OWNERSHIP.md).
 
-1. **Format + safe fixes.**
-   - Ruff variant: `ruff check --fix src/` then `black src/`.
-   - Classic variant: `isort src/` then `black src/`.
-2. **Lint clean.**
-   - Ruff variant: `ruff check src/` passes.
-   - Classic variant: `pylint src/` passes.
-3. Test suite passes with 0 regressions.
-4. No `print()` statements in business logic. `print()` is permitted only in CLI entry files (`__main__.py`) via `_print_commands()` (Patterns 1 & 2) or `argparse` output (Pattern 3) — see §8. No temporary `TODO`s remain.
+Checks 1–2 in [`README.md`](README.md) (acyclicity + direction) are enforced via `import-linter`; this file's §1 (no upward imports from business modules to the root package) is enforced via `scripts/check_upward_imports.py`. `pre-commit` orchestrates both. The per-project contract lives in `pyproject.toml`; the orchestrator config in `.pre-commit-config.yaml`.
 
-## 10. Enforcement
+For linter configuration and workflow (formatter-as-canonical, no inline suppressions, full-codebase scope), see [`../eng-review/PYTHON.md` §5 Linting & Verification](../eng-review/PYTHON.md#5-linting-verification).
 
-SYSTEM.md rules are enforced mechanically via `import-linter` (DAG/cycle checks) and `pre-commit` (orchestration). The per-project contract lives in `pyproject.toml`; the orchestrator config in `.pre-commit-config.yaml`.
-
-Templates live in [`../templates/`](templates/). To adopt on a new project:
+Templates live in [`../templates/`](../templates/). To adopt on a new project:
 
 1. Pick a variant under `../templates/`:
    - `ruff/` (recommended for new projects — ruff for lint, black for format)
@@ -308,6 +254,10 @@ Templates live in [`../templates/`](templates/). To adopt on a new project:
 7. Install and enable:
    - Ruff variant: `pip install pre-commit ruff black mypy import-linter pytest && pre-commit install`
    - Classic variant: `pip install pre-commit black isort pylint mypy import-linter pytest && pre-commit install`
+
+### Bumping pinned versions
+
+Run `pre-commit autoupdate` when you want newer tool releases; review the resulting diff like any other change and commit the bumps your judgment accepts. The framework does not prescribe a cadence — that is an owner decision.
 
 ### Update triggers — when to modify pyproject.toml
 

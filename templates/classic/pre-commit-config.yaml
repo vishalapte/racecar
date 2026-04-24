@@ -20,7 +20,7 @@ repos:
   - repo: local
     hooks:
       - id: no-upward-imports-in-business-modules
-        name: SYSTEM.md §4 — business modules must not import from env layer directly
+        name: arch-coherence/PYTHON.md §1 — business modules must not import from root package directly
         entry: python scripts/check_upward_imports.py
         language: python
         types: [python]

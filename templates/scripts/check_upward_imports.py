@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Enforce SYSTEM.md §4: business modules must not import directly from the root package.
+"""Enforce arch-coherence/PYTHON.md §1: business modules must not import directly from the root package.
 
 Only `__init__.py` files may import from the root package (the environment-layer
-channel). Business modules that need inherited state read it via their own
-package's `__init__.py`. This script rejects any line matching
+channel defined in arch-coherence/README.md "Environment layer exception"). Business modules that need inherited state read
+it via their own package's `__init__.py`. This script rejects any line matching
 `from <root> import ...` in files that are neither `__init__.py` nor `__main__.py`.
 
 The root package name is read from `pyproject.toml`'s `[tool.importlinter].root_package`.

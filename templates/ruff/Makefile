@@ -1,6 +1,14 @@
 # templates/ruff/Makefile — copy to project root (no rename needed).
 # `make check` is the canonical verification entry point.
 
+# Auto-detect venv (order: .venv, venv, ../venv). If found, prepend its
+# bin/ to PATH so ruff, black, mypy, pytest, lint-imports, pre-commit
+# resolve to the venv rather than system binaries.
+VENV := $(firstword $(wildcard .venv venv ../venv))
+ifdef VENV
+  export PATH := $(abspath $(VENV))/bin:$(PATH)
+endif
+
 .PHONY: check fix fmt fmt-check lint test typecheck arch clean help
 
 check: fmt-check lint test typecheck arch
@@ -38,7 +46,7 @@ help:
 	@echo "make fix       - auto-fix formatting (black) and safe ruff issues"
 	@echo "make fmt       - format code in place (ruff --fix then black)"
 	@echo "make fmt-check - check formatting without modifying (ruff + black --check)"
-	@echo "make lint      - run custom SYSTEM.md §4 check"
+	@echo "make lint      - run custom arch-coherence/PYTHON.md §1 check"
 	@echo "make test      - pytest"
 	@echo "make typecheck - mypy"
 	@echo "make arch      - lint-imports (DAG check)"

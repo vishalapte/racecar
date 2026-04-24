@@ -7,19 +7,15 @@
 # NOT in this template — they stay project-side.
 #
 # Replace <root> with your top-level package name, and fill the layer rows
-# with your own packages. See python/PYTHON.md §10 for the update rules.
+# with your own packages. See arch-coherence/PYTHON.md §4 for the update rules.
 
 [tool.ruff]
-line-length = 100
 target-version = "py312"
 output-format = "concise"
 
 [tool.ruff.lint]
-# E/F = pycodestyle+pyflakes; I = isort; N = naming; UP = pyupgrade; B = bugbear; SIM = simplify
-select = ["E", "F", "I", "N", "UP", "B", "SIM"]
-
-[tool.black]
-target-version = ["py312"]
+# E/F = pycodestyle+pyflakes; I = isort; N = naming; UP = pyupgrade; B = bugbear; SIM = simplify; PL = pylint-ported
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PL"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]

@@ -1,5 +1,5 @@
 # Template: copy to <project_root>/.pre-commit-config.yaml (add the leading dot).
-# See python/PYTHON.md §10 for what to customize per project.
+# See arch-coherence/PYTHON.md §4 for what to customize per project.
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -21,7 +21,7 @@ repos:
   - repo: local
     hooks:
       - id: no-upward-imports-in-business-modules
-        name: SYSTEM.md §4 — business modules must not import from env layer directly
+        name: arch-coherence/PYTHON.md §1 — business modules must not import from root package directly
         entry: python scripts/check_upward_imports.py
         language: python
         types: [python]

@@ -33,7 +33,7 @@ Within each level, sort by priority `P0` → `P3` (highest first). Break ties on
 
 ## Item cell
 
-`{TODO-id} {short title, ≤8 words}`. If one TODO id has parts that live at different levels, split it with a stable suffix (e.g. `2B-a`, `2B-b`, `2D-x`, `2D-y`). Use the same suffix consistently across sessions.
+`{TODO-id} {short title, ≤8 words}`. If one TODO id has parts that live at different levels, split it with a stable suffix. Suffixes can be alphabetical (`2B-a`, `2B-b`) or semantic (`2B-qp`, `2B-dedup`, `2D-floors`, `2D-override`) — prefer semantic when the parts have distinct identities. Use the same suffix consistently across sessions.
 
 ## Priority labels
 
@@ -45,6 +45,6 @@ After all level tables, append a numbered list headed `Suggested sprint order:`.
 
 ## Do not
 
-- Do not reformat the underlying `TODO.md` file itself. Just render.
+- Do not reformat, paraphrase, or rewrite the underlying `TODO.md` file itself. Just render.
 - Do not include items from the `## Completed` section.
 - Do not add prose before or after the output. Tables + sprint order are the entire response.
