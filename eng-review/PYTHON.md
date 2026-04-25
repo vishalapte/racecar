@@ -44,13 +44,25 @@ Both variants:
 
 ## 5. Linting & Verification
 
-Final gate. Depends on everything above being correct. The linters configured here also enforce the architectural rules described in [`../arch-coherence/PYTHON.md` §4 Enforcement](../arch-coherence/PYTHON.md#4-enforcement); this section covers the workflow hygiene around running them.
+Final gate. Depends on everything above being correct. The linters configured here also enforce the architectural rules described in [`../arch-coherence/PYTHON.md` §4 Enforcement](../arch-coherence/PYTHON.md#4-enforcement); this section covers the workflow hygiene around running them and triaging output.
 
 - **Full-codebase scope.** Lint the entire project. Partial-set linting is not acceptable.
 - **Linter returns clean output.**
   - Ruff variant: `ruff check` returns clean. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
   - Classic variant: `pylint` returns clean.
 - **No inline suppressions.** Neither `# noqa` (ruff/flake8), `# ruff: noqa`, `# pylint: disable=` (classic), nor `# fmt: off` / `# fmt: on` are acceptable. If the linter or formatter flags a problem, fix the code, not the suppression.
+
+When clearing existing pylint findings on a dirty codebase, the order of attack matters. Two phases:
+
+### Machine phase (unsupervised)
+
+Auto-fix `I` → `C` → mechanical-`W` (`unused-import`, `unused-variable`). Rerun pylint between passes.
+
+### Collaborative phase (machine proposes, human ratifies)
+
+`R` first — refactor findings (`too-many-branches`, `too-many-locals`, `duplicate-code`) reshape the code, so chasing `E`/`F` in pre-refactor structure wastes work or lands the fix in the wrong place. Then `E`, `F`, and judgment-heavy `W` (`broad-except`, `logging-fstring-interpolation`, `protected-access`) — these need intent the machine can draft but not ratify alone.
+
+**Ruff variant.** Same machine-vs-collaborative split, but the cut runs along whether the fix is mechanical or design-shaped — ruff has no five-letter category taxonomy to anchor on.
 
 ## 6. Definition of Done
 
