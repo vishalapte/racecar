@@ -115,6 +115,7 @@ Scan for these. One line each.
 
 ## Decision patterns — documents
 
+- **Read the topology before reporting.** Load the full artifact and every file it cross-references before making a single judgment. A finding that looks valid in a two-paragraph window often inverts when the surrounding structure is visible. Local maxima are not findings.
 - **Evidence over vibes.** Cite the file and line.
 - **Merge when duplication; split when concerns diverge.** Two files with overlapping rules should be one. One file with two unrelated concerns should be two.
 - **Pointers don't preview.** A line routing to §N should route and stop. Previewing clones a subset of §N into a second home that drifts every time §N changes.

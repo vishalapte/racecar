@@ -13,13 +13,20 @@ For language-specific hygiene applied in the post-pass, see [PYTHON.md](PYTHON.m
 ## How to use this file
 
 1. Load this file in full.
-2. **Pre-pass (racecar).** Apply the two checks and red-flag scan below. Any Blocker from the pre-pass should be fixed or annotated before step 3 — gstack's broader review drowns in noise if the fast checks are dirty.
+2. **Pre-pass (racecar).** Check hard stops first — any hit ends the review immediately. Then apply the two checks and red-flag scan. Any Blocker from the pre-pass should be fixed or annotated before step 3 — gstack's broader review drowns in noise if the fast checks are dirty.
 3. **Invoke gstack `/plan-eng-review`.** Delegate the broader engineering review: architecture, data flow, diagrams, edge cases, test coverage, performance, opinionated recommendations. gstack produces its own numbered findings.
 4. **Post-pass (racecar).** Apply [PYTHON.md](PYTHON.md) and [DJANGO.md](DJANGO.md) as applicable. These are the Python/Django idiosyncrasies gstack does not opine on — stubs that ship as canonical Python, tests that exercise mocks instead of code, Django N+1 patterns, access-control mixins omitted on CBVs.
 5. Merge findings from all three passes. Group by defect where one judgment call resolves several mentions. Keep racecar and gstack findings distinguishable — both are evidence; neither overrides the other.
 6. If all three passes trip no Blockers, say so in one line and stop.
 
 Do not summarize the artifact. Go straight to issues.
+
+## Pre-pass: hard stops
+
+These are unconditional. Any one found ends the review immediately — Blocker, Rework, stop.
+
+- Template or example files named with a leading dot (`.env.example`, `.gitignore.template`) — dotfiles are hidden. A template must be visible. Name it `env.example`, not `.env.example`.
+- Template files in the project root — the root is not a sandbox for orphaned templates. Templates live in a dedicated subdirectory (`something/templates/`).
 
 ## Pre-pass: the two engineering checks
 
