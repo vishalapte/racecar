@@ -35,6 +35,9 @@ Load: [shared/TODO_FORMAT.md](shared/TODO_FORMAT.md)
 Topic: Glossary — DAG, coherence, cogency, resolver, depth-plus-one, outward-downward, one-home-per-rule, scope honesty, drift
 Load: [GLOSSARY.md](GLOSSARY.md)
 
+Topic: Commits — Conventional Commits format, valid VERSION increments, VERSION bump convention
+Load: [COMMITS.md](COMMITS.md)
+
 ## Enforcement
 
 Reference this file from your project's `CLAUDE.md` or equivalent agent-instruction file. Read it first to find which component applies. Do not load component files speculatively — read only what the current task requires. If you arrived at a component file directly, return here first.
