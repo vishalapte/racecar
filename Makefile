@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: check-docs test check help
+.PHONY: check-docs test check sync-claude-md help
 
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
@@ -18,7 +18,11 @@ test:
 
 check: check-docs test
 
+sync-claude-md:
+	$(PYTHON) scripts/sync_claude_md.py
+
 help:
-	@echo "make check-docs - run the mechanical pre-pass on this repo's own docs"
-	@echo "make test       - run the test suites under each skill"
-	@echo "make check      - run check-docs and test"
+	@echo "make check-docs     - run the mechanical pre-pass on this repo's own docs"
+	@echo "make test           - run the test suites under each skill"
+	@echo "make check          - run check-docs and test"
+	@echo "make sync-claude-md - write a racecar pointer block into ~/.claude/CLAUDE.md"

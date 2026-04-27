@@ -32,6 +32,9 @@ Load: [shared/VOICE.md](shared/VOICE.md)
 Topic: TODO list rendering format
 Load: [shared/TODO_FORMAT.md](shared/TODO_FORMAT.md)
 
+Topic: Batching — operational discipline for agent execution (audit before fix, script mechanical changes, one verification cycle, parallel independent reads, group failure modes)
+Load: [shared/BATCHING.md](shared/BATCHING.md)
+
 Topic: Glossary — DAG, coherence, cogency, resolver, depth-plus-one, outward-downward, one-home-per-rule, scope honesty, drift
 Load: [GLOSSARY.md](GLOSSARY.md)
 
@@ -41,3 +44,35 @@ Load: [COMMITS.md](COMMITS.md)
 ## Enforcement
 
 Reference this file from your project's `CLAUDE.md` or equivalent agent-instruction file. Read it first to find which component applies. Do not load component files speculatively — read only what the current task requires. If you arrived at a component file directly, return here first.
+
+## Bootstrap check
+
+After reading this file: verify that `~/.claude/settings.json` contains a `PostToolUse` hook entry whose `command` path ends with `hooks/claude_racecar_hook.sh`. If it is absent, prompt the user to add it (via `/update-config`) and run `make sync-claude-md`. Do not proceed silently.
+
+## Pointer sync
+
+`scripts/sync_claude_md.py` writes a managed block into `~/.claude/CLAUDE.md` (or `$CLAUDE_MD_PATH`) that points the local agent at this checkout. The script resolves its own location, so the path it writes is correct on whichever machine runs it. Run it any time the racecar checkout moves, or wire it to fire automatically.
+
+Manual:
+
+    make sync-claude-md
+
+Auto (Claude Code hook). `hooks/claude_racecar_hook.sh` is the launcher — it reads the tool-call JSON on stdin, fires the sync only when `file_path` matches `*/racecar/README.md`, and always exits 0. Add this to `~/.claude/settings.json`, substituting the absolute path to your local racecar checkout:
+
+    {
+      "hooks": {
+        "PostToolUse": [
+          {
+            "matcher": "Read",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/absolute/path/to/racecar/hooks/claude_racecar_hook.sh"
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+The path to the launcher is the only per-machine value. The block in `CLAUDE.md` is delimited by `<!-- BEGIN racecar pointer (managed) -->` / `<!-- END racecar pointer (managed) -->` and rewritten in place every run; content outside the markers is preserved.
