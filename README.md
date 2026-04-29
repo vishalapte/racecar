@@ -45,34 +45,20 @@ Load: [COMMITS.md](COMMITS.md)
 
 Reference this file from your project's `CLAUDE.md` or equivalent agent-instruction file. Read it first to find which component applies. Do not load component files speculatively — read only what the current task requires. If you arrived at a component file directly, return here first.
 
+## Install
+
+From a fresh clone:
+
+    ./install
+
+Bash entrypoint, idempotent. Requires `python3` on `PATH` (stdlib only); the script checks upfront and prints an install hint if it's missing. It does three things, all rooted at this checkout's absolute path:
+
+1. **Symlinks** `~/.claude/skills/racecar`, `racecar-arch-coherence`, `racecar-doc-coherence`, `racecar-eng-review` into the matching directories here, so the `/racecar*` slash commands resolve. An existing symlink pointing somewhere else, or a regular file at one of those paths, is refused — never clobbered.
+2. **Pointer block** in `~/.claude/CLAUDE.md` (or `$CLAUDE_MD_PATH`), delimited by `<!-- BEGIN racecar pointer (managed) -->` / `<!-- END racecar pointer (managed) -->` and rewritten in place. Content outside the markers is preserved.
+3. **Hooks** in `~/.claude/settings.json` (or `$CLAUDE_SETTINGS_PATH`): a `PreToolUse` Bash hook (`hooks/compound-command-allow.sh`) and a `PostToolUse` Read hook (`hooks/claude_racecar_hook.sh`). The Read hook re-fires the pointer sync whenever the agent reads `racecar/README.md`, so the pointer self-heals if the checkout moves.
+
+Re-run `./install` any time you move the checkout. Nothing else updates per-machine state.
+
 ## Bootstrap check
 
-After reading this file: verify that `~/.claude/settings.json` contains a `PostToolUse` hook entry whose `command` path ends with `hooks/claude_racecar_hook.sh`. If it is absent, prompt the user to add it (via `/update-config`) and run `make sync-claude-md`. Do not proceed silently.
-
-## Pointer sync
-
-`scripts/sync_claude_md.py` writes a managed block into `~/.claude/CLAUDE.md` (or `$CLAUDE_MD_PATH`) that points the local agent at this checkout. The script resolves its own location, so the path it writes is correct on whichever machine runs it. Run it any time the racecar checkout moves, or wire it to fire automatically.
-
-Manual:
-
-    make sync-claude-md
-
-Auto (Claude Code hook). `hooks/claude_racecar_hook.sh` is the launcher — it reads the tool-call JSON on stdin, fires the sync only when `file_path` matches `*/racecar/README.md`, and always exits 0. Add this to `~/.claude/settings.json`, substituting the absolute path to your local racecar checkout:
-
-    {
-      "hooks": {
-        "PostToolUse": [
-          {
-            "matcher": "Read",
-            "hooks": [
-              {
-                "type": "command",
-                "command": "/absolute/path/to/racecar/hooks/claude_racecar_hook.sh"
-              }
-            ]
-          }
-        ]
-      }
-    }
-
-The path to the launcher is the only per-machine value. The block in `CLAUDE.md` is delimited by `<!-- BEGIN racecar pointer (managed) -->` / `<!-- END racecar pointer (managed) -->` and rewritten in place every run; content outside the markers is preserved.
+After reading this file: verify that `~/.claude/settings.json` contains a `PostToolUse` hook entry whose `command` path ends with `hooks/claude_racecar_hook.sh`. If it is absent, run `./install`. Do not proceed silently.

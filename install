@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Install racecar into the local Claude Code config.
+#
+# Pure bash entrypoint. Checks for python3 upfront, then:
+#
+# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review}
+#    into this checkout, so the /racecar* slash commands resolve.
+# 2. Runs scripts/sync_claude_md.py to manage the pointer block in
+#    ~/.claude/CLAUDE.md and the racecar hooks in ~/.claude/settings.json.
+#
+# Idempotent. A symlink already pointing at the right target is left alone.
+# A symlink pointing somewhere else, or a regular file at the target path,
+# is refused — never clobbered. Run it again any time this checkout moves.
+#
+# Override targets via env: CLAUDE_SKILLS_PATH, CLAUDE_MD_PATH, CLAUDE_SETTINGS_PATH.
+
+set -euo pipefail
+
+# --- python3 precheck (before anything else) --------------------------------
+
+if ! command -v python3 >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+install: python3 not found on PATH.
+
+racecar needs python3 (stdlib only) to manage ~/.claude/CLAUDE.md and
+~/.claude/settings.json. Install it, then re-run ./install:
+
+  macOS:         xcode-select --install
+  Debian/Ubuntu: sudo apt install python3
+  Fedora:        sudo dnf install python3
+EOF
+    exit 1
+fi
+
+RACECAR_ROOT="$(cd "$(dirname "$0")" && pwd -P)"
+SKILLS_DIR="${CLAUDE_SKILLS_PATH:-$HOME/.claude/skills}"
+
+# Use python3 for canonical path resolution: macOS lacks `realpath` and
+# `readlink -f` by default, and a relative symlink (e.g. an existing
+# hand-rolled `racecar-arch-coherence -> racecar/arch-coherence`) needs
+# resolving to compare against an absolute target.
+realpath_of() {
+    python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
+}
+
+# --- symlinks ---------------------------------------------------------------
+
+mkdir -p "$SKILLS_DIR"
+
+link_one() {
+    local name="$1" target="$2"
+    local link="$SKILLS_DIR/$name"
+
+    if [ -L "$link" ]; then
+        local current_resolved
+        current_resolved="$(realpath_of "$link")"
+        local target_resolved
+        target_resolved="$(realpath_of "$target")"
+        if [ "$current_resolved" = "$target_resolved" ]; then
+            echo "install: $link -> $target (already linked)"
+            return 0
+        fi
+        echo "install: $link is a symlink to $current_resolved, refusing to overwrite. Remove it manually." >&2
+        return 1
+    fi
+
+    if [ -e "$link" ]; then
+        echo "install: $link exists and is not a symlink, refusing to overwrite. Remove it manually." >&2
+        return 1
+    fi
+
+    ln -s "$target" "$link"
+    echo "install: created $link -> $target"
+}
+
+conflicts=0
+for entry in \
+    "racecar:$RACECAR_ROOT" \
+    "racecar-arch-coherence:$RACECAR_ROOT/arch-coherence" \
+    "racecar-doc-coherence:$RACECAR_ROOT/doc-coherence" \
+    "racecar-eng-review:$RACECAR_ROOT/eng-review"; do
+    name="${entry%%:*}"
+    target="${entry#*:}"
+    if ! link_one "$name" "$target"; then
+        conflicts=$((conflicts + 1))
+    fi
+done
+
+# --- CLAUDE.md + settings.json sync ----------------------------------------
+
+python3 "$RACECAR_ROOT/scripts/sync_claude_md.py"
+
+if [ "$conflicts" -gt 0 ]; then
+    echo "" >&2
+    echo "install: $conflicts symlink conflict(s); see above." >&2
+    exit 1
+fi
