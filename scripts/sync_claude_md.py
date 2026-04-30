@@ -62,7 +62,7 @@ PRE_HOOK_BASENAME = "compound-command-allow.sh"
 
 def render_block(racecar_root: Path) -> str:
     readme = racecar_root / "README.md"
-    batching = racecar_root / "shared" / "BATCHING.md"
+    operational = racecar_root / "shared" / "OPERATIONAL.md"
     return (
         f"{BEGIN_MARKER}\n"
         f"## Standards: racecar\n"
@@ -70,9 +70,9 @@ def render_block(racecar_root: Path) -> str:
         f"architectural coherence, documentation drift, or Python/Django "
         f"engineering hygiene. Read it first to find which component file "
         f"applies; do not load component files speculatively.\n\n"
-        f"Execution discipline (audit before fix, script mechanical changes, "
-        f"one verification cycle, parallel independent reads, group failure "
-        f"modes by root cause): `{batching}`.\n"
+        f"Operational discipline (check before mutate, parallel independent "
+        f"reads, audit before fix, group failure modes, script mechanical "
+        f"changes, test suite is not a debugger): `{operational}`.\n"
         f"{END_MARKER}\n"
     )
 

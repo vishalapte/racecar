@@ -32,8 +32,8 @@ Load: [shared/VOICE.md](shared/VOICE.md)
 Topic: TODO list rendering format
 Load: [shared/TODO_FORMAT.md](shared/TODO_FORMAT.md)
 
-Topic: Batching — operational discipline for agent execution (audit before fix, script mechanical changes, one verification cycle, parallel independent reads, group failure modes)
-Load: [shared/BATCHING.md](shared/BATCHING.md)
+Topic: Operational discipline — agent execution rules ordered independent→dependent (check before mutate, parallel independent reads, audit before fix, group failure modes, script mechanical changes, test suite is not a debugger)
+Load: [shared/OPERATIONAL.md](shared/OPERATIONAL.md)
 
 Topic: Glossary — DAG, coherence, cogency, resolver, depth-plus-one, outward-downward, one-home-per-rule, scope honesty, drift
 Load: [GLOSSARY.md](GLOSSARY.md)
