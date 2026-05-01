@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -49,6 +50,27 @@ def _find_repo_root() -> Path:
 
 
 REPO_ROOT = _find_repo_root()
+
+
+def _ignore_patterns() -> tuple[re.Pattern[str], ...]:
+    """Repo-relative regex patterns to skip.
+
+    Honors ``[tool.pylint.MASTER].ignore-paths`` in ``pyproject.toml`` so the
+    script doesn't drown the report in vendored third-party drift the project
+    has already declared out-of-scope. No pyproject / no key -> empty tuple.
+    """
+    pyproject = REPO_ROOT / "pyproject.toml"
+    if not pyproject.is_file():
+        return ()
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError):
+        return ()
+    raw = data.get("tool", {}).get("pylint", {}).get("MASTER", {}).get("ignore-paths", [])
+    return tuple(re.compile(p) for p in raw if isinstance(p, str))
+
+
+IGNORE_PATTERNS = _ignore_patterns()
 
 # Search order when a `FILENAME.md §N` citation carries no directory prefix.
 # First match wins; cite with a prefix (`<dir>/FILENAME.md §N`) to target a
@@ -68,6 +90,16 @@ def _is_hidden(path: Path) -> bool:
     except ValueError:
         return False
     return any(part.startswith(".") for part in rel.parts)
+
+
+def _is_ignored(path: Path) -> bool:
+    if not IGNORE_PATTERNS:
+        return False
+    try:
+        rel = path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return False
+    return any(p.search(rel) for p in IGNORE_PATTERNS)
 
 
 def _heading_slugs(text: str) -> set[str]:
@@ -163,11 +195,11 @@ def _check_section_citations(path: Path) -> list[str]:
 def main() -> int:
     errors: list[str] = []
     for md_path in REPO_ROOT.rglob("*.md"):
-        if _is_hidden(md_path):
+        if _is_hidden(md_path) or _is_ignored(md_path):
             continue
         errors.extend(_check_links(md_path))
     for path in REPO_ROOT.rglob("*"):
-        if path.is_dir() or _is_hidden(path):
+        if path.is_dir() or _is_hidden(path) or _is_ignored(path):
             continue
         if path.suffix == ".md":
             continue
