@@ -2,6 +2,9 @@
 
 This is a routing table. Load the file that applies to the task at hand. Do not load all files.
 
+Topic: Agent persona — interaction style and thought process when applying racecar standards
+Load: [PERSONA.md](PERSONA.md)
+
 Topic: Architectural coherence — four checks (acyclicity, direction, layer integrity, depth-plus-one isolation) with sub-axioms (environment-layer exception, domain boundaries), plus review lens
 Load: [arch-coherence/README.md](arch-coherence/README.md)
 
