@@ -84,7 +84,11 @@ def replace_or_append(existing: str, block: str) -> str:
         if after.startswith("\n"):
             after = after[1:]
         return f"{before}{block}{after}"
-    separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
+    separator = (
+        ""
+        if existing.endswith("\n\n")
+        else ("\n" if existing.endswith("\n") else "\n\n")
+    )
     if not existing:
         return block
     return f"{existing}{separator}{block}"
@@ -109,7 +113,9 @@ def upsert_hook(
     """
     hooks_root = settings.setdefault("hooks", {})
     if not isinstance(hooks_root, dict):
-        raise ValueError(f"settings.json `hooks` is not an object: {type(hooks_root).__name__}")
+        raise ValueError(
+            f"settings.json `hooks` is not an object: {type(hooks_root).__name__}"
+        )
 
     event_entries = hooks_root.setdefault(event, [])
     if not isinstance(event_entries, list):
@@ -129,7 +135,9 @@ def upsert_hook(
 
     inner = matcher_entry.setdefault("hooks", [])
     if not isinstance(inner, list):
-        raise ValueError(f"settings.json `hooks.{event}[matcher={matcher}].hooks` is not an array")
+        raise ValueError(
+            f"settings.json `hooks.{event}[matcher={matcher}].hooks` is not an array"
+        )
 
     desired = {"type": "command", "command": command}
 
@@ -137,7 +145,9 @@ def upsert_hook(
         if not isinstance(h, dict):
             continue
         cmd = h.get("command", "")
-        if isinstance(cmd, str) and cmd.rstrip().rstrip('"').rstrip("'").endswith(basename):
+        if isinstance(cmd, str) and cmd.rstrip().rstrip('"').rstrip("'").endswith(
+            basename
+        ):
             if h == desired:
                 return created_matcher
             h.clear()
@@ -169,10 +179,16 @@ def sync_settings(
         settings = {}
 
     if not isinstance(settings, dict):
-        raise SystemExit(f"sync_claude_md: {settings_path} top-level value is not a JSON object")
+        raise SystemExit(
+            f"sync_claude_md: {settings_path} top-level value is not a JSON object"
+        )
 
-    pre_changed = upsert_hook(settings, "PreToolUse", "Bash", pre_command, PRE_HOOK_BASENAME)
-    post_changed = upsert_hook(settings, "PostToolUse", "Read", post_command, POST_HOOK_BASENAME)
+    pre_changed = upsert_hook(
+        settings, "PreToolUse", "Bash", pre_command, PRE_HOOK_BASENAME
+    )
+    post_changed = upsert_hook(
+        settings, "PostToolUse", "Read", post_command, POST_HOOK_BASENAME
+    )
 
     rendered = json.dumps(settings, indent=2) + "\n"
     changed = pre_changed or post_changed or (rendered != raw)
@@ -218,7 +234,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    claude_md = resolve_path(args.claude_md, "CLAUDE_MD_PATH", Path.home() / ".claude" / "CLAUDE.md")
+    claude_md = resolve_path(
+        args.claude_md, "CLAUDE_MD_PATH", Path.home() / ".claude" / "CLAUDE.md"
+    )
     settings_path = resolve_path(
         args.settings, "CLAUDE_SETTINGS_PATH", Path.home() / ".claude" / "settings.json"
     )
@@ -242,7 +260,9 @@ def main() -> int:
     if md_changed:
         claude_md.parent.mkdir(parents=True, exist_ok=True)
         claude_md.write_text(updated_md)
-        print(f"sync_claude_md: {'created' if not existing_md else 'updated'} {claude_md}")
+        print(
+            f"sync_claude_md: {'created' if not existing_md else 'updated'} {claude_md}"
+        )
     else:
         print(f"sync_claude_md: {claude_md} already up to date")
 

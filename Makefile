@@ -8,10 +8,13 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install check-docs test check help
+.PHONY: install install-deps check-docs test check help
 
-install:
+install: install-deps
 	./install
+
+install-deps:
+	$(PYTHON) -m pip install --group dev
 
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
@@ -22,7 +25,8 @@ test:
 check: check-docs test
 
 help:
-	@echo "make install    - bootstrap into the local Claude Code config (delegates to ./install)"
-	@echo "make check-docs - run the mechanical pre-pass on this repo's own docs"
-	@echo "make test       - run the test suites under each skill"
-	@echo "make check      - run check-docs and test"
+	@echo "make install      - install python deps then bootstrap into Claude Code config"
+	@echo "make install-deps - install python deps from pyproject.toml dev group"
+	@echo "make check-docs   - run the mechanical pre-pass on this repo's own docs"
+	@echo "make test         - run the test suites under each skill"
+	@echo "make check        - run check-docs and test"

@@ -1,6 +1,6 @@
 # Commits
 
-Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
+Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
 
 Rules for commit messages in this repo. Apply without deviation when authoring or suggesting a commit.
 

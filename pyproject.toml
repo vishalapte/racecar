@@ -1,0 +1,14 @@
+[dependency-groups]
+dev = [
+    "black",
+    "boto3",
+    "isort",
+    "pylint",
+    "pytest",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
