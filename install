@@ -6,7 +6,10 @@
 # 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary}
 #    into this checkout, so the /racecar* slash commands resolve.
 # 2. Runs scripts/sync_claude_md.py to manage the pointer block in
-#    ~/.claude/CLAUDE.md and the racecar hooks in ~/.claude/settings.json.
+#    ~/.claude/CLAUDE.md and four racecar hooks in ~/.claude/settings.json:
+#    PreToolUse(Bash), PostToolUse(Read), and the decision-log pair —
+#    PreCompact + SessionStart(compact) — which append to / reconcile a
+#    project's .claude/HISTORY.md (no-op unless that file exists).
 #
 # Idempotent. A symlink already pointing at the right target is left alone.
 # A symlink pointing somewhere else, or a regular file at the target path,

@@ -5,10 +5,17 @@ Two idempotent operations against `~/.claude/`:
 
 1. Pointer block in `~/.claude/CLAUDE.md` — a managed `<!-- BEGIN/END
    racecar pointer -->` block that points the agent at this checkout.
-2. Hooks in `~/.claude/settings.json` — a `PostToolUse` Read hook
-   (`hooks/claude_racecar_hook.sh`) and a `PreToolUse` Bash hook
-   (`hooks/compound-command-allow.sh`), both wired to absolute paths
-   inside this checkout.
+2. Hooks in `~/.claude/settings.json` — four, wired to absolute paths
+   inside this checkout:
+     - `PreToolUse` Bash  → `hooks/compound-command-allow.sh`
+     - `PostToolUse` Read → `hooks/claude_racecar_hook.sh`
+     - `PreCompact` (matcher "" = manual+auto) → `hooks/precompact_history.py`
+       (deterministic decision-log marker)
+     - `SessionStart` (matcher "compact") → `hooks/session_compact_history.py`
+       (prompts the agent to reconcile <repo>/.claude/HISTORY.md from the
+       transcript after compaction)
+   The two decision-log hooks no-op unless the project has a
+   `.claude/HISTORY.md`.
 
 Every run rewrites both in place. Designed to be invoked manually
 (Makefile) or automatically (Claude Code PostToolUse hook on Read of
@@ -55,6 +62,8 @@ RACECAR_ROOT = Path(__file__).resolve().parent.parent
 
 POST_HOOK_BASENAME = "claude_racecar_hook.sh"
 PRE_HOOK_BASENAME = "compound-command-allow.sh"
+PRECOMPACT_HOOK_BASENAME = "precompact_history.py"
+SESSIONSTART_HOOK_BASENAME = "session_compact_history.py"
 
 
 # --- CLAUDE.md pointer block -------------------------------------------------
@@ -190,8 +199,32 @@ def sync_settings(
         settings, "PostToolUse", "Read", post_command, POST_HOOK_BASENAME
     )
 
+    # Decision-log hooks. The PreCompact marker is deterministic (matcher ""
+    # catches both manual + auto compaction); the SessionStart(compact) hook
+    # prompts the agent to reconcile <repo>/.claude/HISTORY.md from the
+    # transcript after compaction. Both no-op unless the project has a
+    # .claude/HISTORY.md — see hooks/precompact_history.py.
+    precompact_command = str(racecar_root / "hooks" / PRECOMPACT_HOOK_BASENAME)
+    sessionstart_command = str(racecar_root / "hooks" / SESSIONSTART_HOOK_BASENAME)
+    precompact_changed = upsert_hook(
+        settings, "PreCompact", "", precompact_command, PRECOMPACT_HOOK_BASENAME
+    )
+    sessionstart_changed = upsert_hook(
+        settings,
+        "SessionStart",
+        "compact",
+        sessionstart_command,
+        SESSIONSTART_HOOK_BASENAME,
+    )
+
     rendered = json.dumps(settings, indent=2) + "\n"
-    changed = pre_changed or post_changed or (rendered != raw)
+    changed = (
+        pre_changed
+        or post_changed
+        or precompact_changed
+        or sessionstart_changed
+        or (rendered != raw)
+    )
 
     if changed and not dry_run:
         settings_path.parent.mkdir(parents=True, exist_ok=True)
