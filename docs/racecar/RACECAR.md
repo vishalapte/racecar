@@ -1,11 +1,11 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.2.0"
+  version: "0.3.0"
 target:
   repo: racecar
-  sha: 9c70eef
-  date: 2026-05-20
+  sha: c913bbe
+  date: 2026-05-24
 bundle:
   - RACECAR.md
 
@@ -61,14 +61,20 @@ entities:
   - name: SettingsHook
     case: on_disk_managed
     lifecycle: realized
-    purpose: A `hooks.*ToolUse` entry in `~/.claude/settings.json` that wires a racecar bash hook into the Claude Code permission and event pipeline.
-    notes: "Two managed: PreToolUse Bash (`compound-command-allow.sh`) and PostToolUse Read (`claude_racecar_hook.sh`). Identified by command basename so a moved checkout self-heals."
+    purpose: A `hooks.*` entry in `~/.claude/settings.json` that wires a racecar hook into the Claude Code permission and event pipeline.
+    notes: "Four managed: PreToolUse Bash (`compound-command-allow.sh`), PostToolUse Read (`claude_racecar_hook.sh`), PreCompact (`hooks/precompact_history.py`) and SessionStart/compact (`hooks/session_compact_history.py`) — the last two form the decision-log pair (see DecisionLog). Identified by command basename so a moved checkout self-heals."
+
+  - name: DecisionLog
+    case: on_disk_managed
+    lifecycle: realized
+    purpose: A per-project append-only `<repo>/.claude/HISTORY.md` capturing where context was compacted and the reconciled why; mirrored to `~/.claude/history/<repo-kebab>.md`.
+    notes: "Opt-in: the decision-log hooks no-op unless the project already has a `.claude/HISTORY.md`. PreCompact appends a deterministic compaction marker (branch@HEAD, trigger); SessionStart(compact) prompts the agent to mine the pre-compaction transcript and append the rationale. Tiered: deterministic spine + judgment-only why."
 
   - name: VersionFile
     case: on_disk_managed
     lifecycle: realized
     purpose: A plain `major.minor.patch` text file at the repo root that tracks the framework's release line.
-    notes: "Manually edited per shared/COMMITS.md; current 0.2.0."
+    notes: "Manually edited per shared/COMMITS.md; current 0.3.0."
 
   - name: SkillManifest
     case: content_tree
@@ -82,8 +88,8 @@ entities:
     case: content_tree
     lifecycle: realized
     purpose: A living Markdown standard — lens README, language overlay, or shared convention — read into the agent's context on demand.
-    path_pattern: "<skill>/README.md, arch-coherence/{PYTHON,DJANGO}.md, eng-review/{PYTHON,DJANGO}.md, shared/*.md, expert/EXPERT.md, root README.md"
-    count: "~20"
+    path_pattern: "<skill>/README.md, arch-coherence/{PYTHON,DJANGO}.md, eng-review/{PYTHON,DJANGO}.md, shared/*.md (incl. DRIFT.md), expert/EXPERT.md, root README.md"
+    count: "~21"
     validator: "doc-coherence/scripts/check_docs.py"
 
   - name: ProjectTemplate
@@ -136,6 +142,11 @@ relationships:
     cardinality: "1:1"
     notes: "PostToolUse Read hook re-fires sync_claude_md.py whenever `*/racecar/README.md` is read; the pointer block then self-heals if the checkout moved."
 
+  - from: SettingsHook
+    to: DecisionLog
+    cardinality: "1:N"
+    notes: "The PreCompact hook appends the compaction marker to the project's HISTORY.md; the SessionStart(compact) hook prompts reconciliation of the same file. Both no-op unless the project opted in with a `.claude/HISTORY.md`."
+
   - from: ProjectTemplate
     to: MechanicalCheck
     cardinality: "1:N"
@@ -175,7 +186,7 @@ external_surface:
     - verb: ./install
       module: install
       args: "none; env: CLAUDE_SKILLS_PATH, CLAUDE_MD_PATH, CLAUDE_SETTINGS_PATH"
-      behavior: "python3 precheck → symlink five skills under ~/.claude/skills/ → invoke sync_claude_md.py to manage the pointer block and two hooks. Idempotent; refuses to clobber foreign state."
+      behavior: "python3 precheck → symlink five skills under ~/.claude/skills/ → invoke sync_claude_md.py to manage the pointer block and four hooks. Idempotent; refuses to clobber foreign state."
       exit: "0 ok / 1 on conflicts or missing python3"
     - verb: make install
       module: Makefile
@@ -351,7 +362,7 @@ The implicit graph between installer scripts, hooks, and consumer artifacts is a
 ~/.claude/skills/{racecar,    ~/.claude/CLAUDE.md          ~/.claude/skills/
  racecar-arch-coherence,        (main pointer block)        racecar-expert-mode
  racecar-doc-coherence,       ~/.claude/settings.json       ~/.claude/CLAUDE.md
- racecar-eng-review,            (two hook entries)           (expert pointer block)
+ racecar-eng-review,            (four hook entries)           (expert pointer block)
  racecar-llm-summary}                  ^
                                        |
                                        |  re-fires on PostToolUse Read
@@ -367,11 +378,11 @@ See frontmatter `external_surface` for the full enumeration. Two surface entries
 
 #### §2.4.1 `./install`
 
-Bash, idempotent. Reads three env vars (`CLAUDE_SKILLS_PATH`, `CLAUDE_MD_PATH`, `CLAUDE_SETTINGS_PATH`) with `~/.claude/` defaults. On a fresh clone, the sequence is: `python3` precheck (`install:19-33` prints an OS-specific install hint and exits 1 if missing) → for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict) → invoke `scripts/sync_claude_md.py` to write the pointer block and upsert the two hooks. A symlink already at the right target is left alone; one pointing elsewhere or a regular file at the path is refused and counted as a conflict (`exit 1`). See `install` and `scripts/sync_claude_md.py` for the symmetry between the bash phase (filesystem primitives) and the Python phase (structured rewriting of CLAUDE.md and settings.json).
+Bash, idempotent. Reads three env vars (`CLAUDE_SKILLS_PATH`, `CLAUDE_MD_PATH`, `CLAUDE_SETTINGS_PATH`) with `~/.claude/` defaults. On a fresh clone, the sequence is: `python3` precheck (`install:19-33` prints an OS-specific install hint and exits 1 if missing) → for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict) → invoke `scripts/sync_claude_md.py` to write the pointer block and upsert the four hooks. A symlink already at the right target is left alone; one pointing elsewhere or a regular file at the path is refused and counted as a conflict (`exit 1`). See `install` and `scripts/sync_claude_md.py` for the symmetry between the bash phase (filesystem primitives) and the Python phase (structured rewriting of CLAUDE.md and settings.json).
 
 #### §2.4.2 PostToolUse Read self-heal
 
-`hooks/claude_racecar_hook.sh` receives PostToolUse JSON on stdin and case-globs `*/racecar/README.md` against `.tool_input.file_path`. On match, it re-fires `sync_claude_md.py` with output silenced. The hook **always exits 0** so a malformed payload never blocks the Read. This is the mechanism by which the pointer block and the absolute paths inside the two hook entries self-heal whenever the checkout moves. See `hooks/claude_racecar_hook.sh:13-32`.
+`hooks/claude_racecar_hook.sh` receives PostToolUse JSON on stdin and case-globs `*/racecar/README.md` against `.tool_input.file_path`. On match, it re-fires `sync_claude_md.py` with output silenced. The hook **always exits 0** so a malformed payload never blocks the Read. This is the mechanism by which the pointer block and the absolute paths inside the four hook entries self-heal whenever the checkout moves. See `hooks/claude_racecar_hook.sh:13-32`.
 
 Short slash commands, `make` targets, and mechanical pre-pass scripts are fully captured in frontmatter and need no body gloss.
 
@@ -397,7 +408,7 @@ Racecar has no production / dev split — there is no deployed instance. Every k
 
 - `CLAUDE_SKILLS_PATH` — where `./install` writes skill symlinks. Default `~/.claude/skills`.
 - `CLAUDE_MD_PATH` — which `CLAUDE.md` the pointer block is written into. Default `~/.claude/CLAUDE.md`.
-- `CLAUDE_SETTINGS_PATH` — which `settings.json` receives the two hook entries. Default `~/.claude/settings.json`.
+- `CLAUDE_SETTINGS_PATH` — which `settings.json` receives the four hook entries. Default `~/.claude/settings.json`.
 - `STRING_RELATIONS_INSTALLED_APPS` — comma-separated app labels; overrides Django app discovery in `check_string_relations.py`. Test / CI mode; bypasses the `manage.py shell` invocation.
 - `OBSIDIAN_SYNC_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile. CLI flag `--dest` > env var > `dest_root` in `~/.config/obsidian-sync.toml`. No default — the script refuses to guess.
 - `--claude-md` / `--target`, `--settings`, `--dry-run` — `sync_claude_md.py` CLI flags. CLI flag > env var > default.
@@ -413,7 +424,7 @@ No secrets. No environment-variant rows because there is no environment split.
 
 ### §2.7 Flows
 
-1. **Fresh install (`./install`).** python3 precheck; for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict); invoke `scripts/sync_claude_md.py`, which renders the pointer block, partitions `~/.claude/CLAUDE.md` on BEGIN/END markers, and upserts the two hooks into `~/.claude/settings.json` by command basename. Idempotent. Exit 0 if no conflicts; 1 otherwise. Implementation: `install` and `scripts/sync_claude_md.py` (`render_block`, `replace_or_append`, `upsert_hook`, `sync_settings`).
+1. **Fresh install (`./install`).** python3 precheck; for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict); invoke `scripts/sync_claude_md.py`, which renders the pointer block, partitions `~/.claude/CLAUDE.md` on BEGIN/END markers, and upserts the four hooks into `~/.claude/settings.json` by command basename. Idempotent. Exit 0 if no conflicts; 1 otherwise. Implementation: `install` and `scripts/sync_claude_md.py` (`render_block`, `replace_or_append`, `upsert_hook`, `sync_settings`).
 
 2. **Pointer self-heal (PostToolUse Read hook).** Claude Code reads any file ending in `racecar/README.md` → `hooks/claude_racecar_hook.sh` extracts `.tool_input.file_path` (`jq` if present, else `sed`) → case-globs the path → re-fires `sync_claude_md.py` silently. Hook always exits 0. Implementation: `hooks/claude_racecar_hook.sh`.
 
@@ -434,7 +445,7 @@ No secrets. No environment-variant rows because there is no environment split.
 Plugin / extension surfaces:
 
 - **Skill registration.** Add `<name>/SKILL.md` with `name:` and `description:` frontmatter, add a row to `install`'s symlink loop so `./install` creates the link, add a row to the root resolver `README.md`. The pointer block rendered by `scripts/sync_claude_md.py:render_block` is intentionally generic (points at `README.md` + `shared/OPERATIONAL.md`) and does not enumerate skills, so adding one does not require editing `render_block`. Recent example: the `racecar-llm-summary` skill (commit `eac2a8c` and follow-ups; see `install:77-88` for the symlink loop).
-- **Hook contract.** Append another `upsert_hook(settings, event, matcher, command, basename)` call in `scripts/sync_claude_md.py:sync_settings`. Hooks are identified by command basename so a moved checkout self-heals. Recent example: the PreToolUse Bash hook added alongside the PostToolUse Read hook (commit `3368339`).
+- **Hook contract.** Append another `upsert_hook(settings, event, matcher, command, basename)` call in `scripts/sync_claude_md.py:sync_settings`. Hooks are identified by command basename so a moved checkout self-heals. Recent example: the decision-log pair — a `PreCompact` and a `SessionStart(compact)` hook (commit `86aee48`).
 - **Mechanical check.** A new Python script in `arch-coherence/scripts/`, `doc-coherence/scripts/`, or `llm-summary/scripts/`; a row in the relevant template `pre-commit-config.yaml` under `repo: local` (or, for full-tree audits, a Makefile target); and a doc section that the script's docstring backrefs by `§N`. Recent example: the scope-honesty close-out (`9c70eef`) wired `check_string_relations.py` and `check_docs.py` into both ruff and classic templates, with the Django-only check guarded by `[ -f manage.py ]` so non-Django consumers fall through silently.
 - **Output overlay.** A directory with `SKILL.md` + content `.md`, a manage-block script under `scripts/` using twin `<!-- BEGIN ... (managed) -->` / `<!-- END ... (managed) -->` markers, and a `make` target pair (install / uninstall). Recent example: `racecar-expert-mode` (commit `6ce3338`; manage script `scripts/expert_mode.py`).
 
@@ -450,12 +461,15 @@ Plugin / extension surfaces:
 - **Conventional Commits + tabular VERSION rule.** `shared/COMMITS.md`. Fixed grammar means commits can be filtered; VERSION delta is `+0.0.1` / `+0.1.0` / `+1.0.0` and any other delta is invalid.
 - **YAML frontmatter as the relational store for the brief.** `llm-summary/README.md ## Frontmatter (YAML)`. Rejected: everything in body tables. Motivation: a downstream LLM can query frontmatter deterministically (parse once, ask many) where parsing tables-from-Markdown is fragile.
 - **Class-level entities only, no field tables.** Recent pivot in `llm-summary/README.md`. The brief is a single-file mobile-shareable knowledge package, not a reconstruction-grade specification. Field tables blew the line budget and were rarely the interesting query.
+- **Drift doctrine.** Commit `a9755da`, `shared/DRIFT.md`. Entropy is monotonic and continuous, so a defense must be structural or automatic and manual review is the last tier; drift is frame-relative, so resolve it at the largest frame that explains the symptom and grade severity where the damage lands. Three tiers (eliminate the surface / detect on every change / periodic sweep) plus a drift ledger; "duplication is drift" is marked Tier 1.
+- **Decision log as a tiered hook pair.** Commit `86aee48`. A `PreCompact` hook writes a deterministic compaction marker (the spine) and a `SessionStart(compact)` hook prompts the agent to mine the pre-compaction transcript for the why (judgment). Rejected: a purely deterministic log (cannot capture rationale) and a pure-prompt log (no reliable spine). The racecar pattern — judgment only where a predicate can't decide, pre-filtered by what one can. Opt-in per project via a `.claude/HISTORY.md`.
+- **Obsidian docs sync mirrors by wipe-and-recopy.** Commit `c913bbe`, Makefile `obsidian-docs`. To mirror an arbitrary `[A-Z]+.md` file set preserving tree structure, the docs subtree is wiped then recopied via `rsync --files-from`. Rejected: `rsync --delete` with `--files-from` (cannot prune) and filter rules with `--delete-excluded` (protect orphans) — both verified not to mirror. The `rm -rf` is bounded to the dedicated `<org>-<repo>/docs` subtree behind non-empty-slug + vault-exists guards.
 
 ### §2.10 Operational
 
 - **Install (fresh clone).** Requires `python3 ≥ 3.11` on `PATH` (stdlib only) and a writable `~/.claude/`. Run `./install`. Idempotent. Override targets via `CLAUDE_SKILLS_PATH` / `CLAUDE_MD_PATH` / `CLAUDE_SETTINGS_PATH`.
 - **Bootstrap check.** Verify `~/.claude/settings.json` `hooks.PostToolUse` contains an entry whose command ends with `hooks/claude_racecar_hook.sh`. Root `README.md` documents this as the "Bootstrap check."
-- **Move the checkout.** Re-run `./install`. The PostToolUse Read hook also self-heals the pointer block and the two hook absolute paths whenever any `racecar/README.md` file is read.
+- **Move the checkout.** Re-run `./install`. The PostToolUse Read hook also self-heals the pointer block and the four hook absolute paths whenever any `racecar/README.md` file is read.
 - **System dependencies.** `python3 ≥ 3.11` (`tomllib` stdlib). Optional `jq` for the Read hook (sed fallback); required `jq` for the Bash hook. `make` for the human surface.
 - **Dev dependencies.** `pip install --group dev` (via `make install-deps`) pulls `black` / `isort` / `pylint` / `pytest` / `pyyaml>=6.0`. Only `pytest` and `pyyaml` are exercised by `make check` against this repo's own surface; `black` / `isort` / `pylint` are consumer-side defaults wired into the templates.
 - **Scheduled jobs.** None. No `.github/workflows/`. Self-test cadence is owner-driven: `make check` runs `check-docs` + `pytest arch-coherence/tests` + `check-brief`.
