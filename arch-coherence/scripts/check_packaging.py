@@ -633,12 +633,22 @@ def check_djapp_pyproject(root: Path, pyproject_path: Path) -> list[Finding]:
 # ---------------------------------------------------------------------------
 
 
-def check_legacy_version_file(root: Path) -> list[Finding]:
-    """A `VERSION` file at repo root is the pre-v4 pattern; pyproject is now sole source.
+def check_legacy_version_file(root: Path, *, has_canonical_version: bool) -> list[Finding]:
+    """A `VERSION` file at repo root is the pre-v4 pattern when a canonical
+    `[project].version` already exists; pyproject is then the sole source.
 
-    If found, flag as a Finding so projects migrate. Not a Blocker -- harmless
-    if it happens to match pyproject, but it's dead canon.
+    The rule is contingent on that canonical version. If the library pyproject
+    declares no `[project].version` -- a repo that is not a deployable/publishable
+    package (docs, scripts, a standards framework) has no `[project]` table at
+    all -- there is nothing for VERSION to be redundant with, so VERSION is the
+    legitimate version home and is not flagged. Only when `[project].version`
+    exists is a separate `VERSION` file dead canon. See PACKAGING.md §8.
+
+    When applicable, flag as a Finding so projects migrate. Not a Blocker --
+    harmless if it happens to match pyproject, but it's dead canon.
     """
+    if not has_canonical_version:
+        return []
     if (root / "VERSION").exists():
         return [
             Finding(
@@ -902,9 +912,12 @@ def run_all(root: Path) -> list[Finding]:
     if shape.name == "unknown":
         return findings
 
+    has_canonical_version = False
     if shape.library_pyproject is not None:
         lib_findings, lib_data = check_library_pyproject(root, shape.library_pyproject)
         findings.extend(lib_findings)
+        project = lib_data.get("project") if isinstance(lib_data, dict) else None
+        has_canonical_version = isinstance(project, dict) and bool(project.get("version"))
         if shape.name == "pypkg+djapp":
             lib_label = _rel_for_audit(root, shape.library_pyproject)
             findings.extend(check_djapp_isort_coverage(root, lib_data, lib_label))
@@ -913,7 +926,7 @@ def run_all(root: Path) -> list[Finding]:
     if shape.djapp_pyproject is not None:
         findings.extend(check_djapp_pyproject(root, shape.djapp_pyproject))
 
-    findings.extend(check_legacy_version_file(root))
+    findings.extend(check_legacy_version_file(root, has_canonical_version=has_canonical_version))
     findings.extend(check_requirements(root, shape))
     findings.extend(check_forbidden_lockfiles(root))
     findings.extend(check_gitignore(root))

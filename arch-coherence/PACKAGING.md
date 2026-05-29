@@ -367,7 +367,7 @@ For Shape `pypkg+djapp`: the djapp pyproject has no `[project]` block and theref
 python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
 ```
 
-The checker emits a Finding when a legacy `VERSION` file is detected so projects know to migrate.
+The checker emits a Finding when a legacy `VERSION` file is detected **only when the library pyproject declares `[project].version`** — i.e. when a canonical version exists for `VERSION` to be redundant with. A repo that declares no `[project]` table is not a deployable/publishable package (a docs, scripts, or standards-framework repo); it has no pyproject version to supersede a `VERSION` file, so `VERSION` is its legitimate version home and is not flagged. This rule deprecates `VERSION` only where a real `[project].version` exists to replace it.
 
 ### `CHANGELOG.md`
 

@@ -463,6 +463,23 @@ def test_legacy_version_file_with_strict_is_blocker(tmp_path: Path) -> None:
     assert "deprecated-file" in result.stdout
 
 
+def test_no_project_version_means_version_file_not_flagged(tmp_path: Path) -> None:
+    """A repo with no [project].version (a non-package repo: docs / scripts /
+    standards framework, which has no [project] table) keeps VERSION as its
+    legitimate version home -- the deprecated-file Finding must NOT fire even
+    when a VERSION file is present. See PACKAGING.md §8."""
+    no_project = (
+        "[dependency-groups]\n"
+        'dev = ["black", "isort", "pylint", "pytest"]\n\n'
+        "[tool.black]\nline-length = 88\n\n"
+        '[tool.isort]\nprofile = "black"\n'
+    )
+    repo = _seed_src(tmp_path, **{"pyproject.toml": no_project})
+    (repo / "VERSION").write_text("0.5.0\n", encoding="utf-8")
+    result = _run(repo)
+    assert "deprecated-file" not in result.stdout, (result.stdout, result.stderr)
+
+
 # ---------------------------------------------------------------------------
 # Forbidden lockfiles
 # ---------------------------------------------------------------------------
