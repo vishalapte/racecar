@@ -12,7 +12,7 @@ A racecar Python package's CLI surface is composed of `python -m <pkg>` invocati
 
 **Knowledge isolation.** Each `__main__.py` only declares what it directly contains — names of its immediate sub-packages (depth + 1). It does not enumerate grandchildren.
 
-**Side-effect isolation.** `commands()`, `subcommands()`, and `parser()` are pure data functions. No I/O, no network, no heavy processing. Printing the listing is confined to the `_print_commands()` helper (Patterns 1 and 2). Leaf CLIs (Pattern 3) delegate all output to `argparse`. No other CLI functions should call `print()` directly.
+**Side-effect isolation.** `commands()`, `subcommands()`, and `parser()` are pure data functions. No I/O, no network, no heavy processing. Printing the listing is confined to the `_print_commands()` helper (Patterns 1 and 2) — or, when a package adopts the optional `_cli.py`, to `_cli.print_commands`, which each node's `_print_commands()` delegates to. Leaf CLIs (Pattern 3) delegate all output to `argparse`. No other CLI functions should call `print()` directly.
 
 ## The three contracts
 
@@ -172,7 +172,34 @@ if __name__ == "__main__":
     main()
 ```
 
-Note: `_print_commands()` must exist in every Pattern 1 and Pattern 2 `__main__.py`. The outward-downward rule ([check 2 Direction](README.md#2-direction)) forbids inheriting it from above; there is no guaranteed leaf below to reuse it from. The function is therefore explicit at every node — a direct expression of the architecture, not a duplication to be reconciled.
+Note: `_print_commands()` must exist in every Pattern 1 and Pattern 2 `__main__.py`. The outward-downward rule ([check 2 Direction](README.md#2-direction)) forbids inheriting it from above; there is no guaranteed leaf below to reuse it from. The function is therefore explicit at every node — a direct expression of the architecture. Its *body*, however, is identical boilerplate, and that part may be shared.
+
+**Optional — share the render body via `_cli.py`.** With a single dispatcher, inlining the body above is fine. Once a package has several `__main__.py` nodes the inlined body is duplicated across them, and pylint's `duplicate-code` (R0801) flags it on the path to a clean lint. Rather than re-derive the fix per project, copy [`lib/_cli.py`](lib/_cli.py) into the package source root (`<pkg>/_cli.py`) and delegate:
+
+```python
+from fubar._cli import print_commands
+
+
+def _print_commands() -> None:
+    print_commands(__package__, commands())
+```
+
+The architecture is unchanged — every Pattern 1 and Pattern 2 node still *exposes its own* `_print_commands()` (the audit checks for the symbol); only the render mechanics move to one home. `_cli.py` is **offered, not required**: inlining stays equally valid.
+
+The listing is flat by default. A node with many verbs of mixed effect can group them — so destructive commands are visible apart from safe ones at a glance — by classifying each verb and passing `kinds`:
+
+```python
+from fubar._cli import print_commands
+
+# verb name -> section key (see _cli.SECTIONS: read / write / placeholder)
+_KINDS = {"alpha": "read", "beta": "write", "gamma": "placeholder"}
+
+
+def _print_commands() -> None:
+    print_commands(__package__, commands(), kinds=_KINDS)
+```
+
+This renders the same `commands()` under `Read-only:` / `Writes:` / `Placeholders:` headings. A verb missing from `_KINDS` raises, so a new sub-command can't silently drop out of the listing. The grouping is opt-in; omit `kinds` for the flat form.
 
 ---
 
@@ -496,7 +523,7 @@ Slim (what the SessionStart hook injects):
 | Depth + 1 only — never enumerate grandchildren | Each layer owns its own listing |
 | Leaves return `commands() == []` | Keeps the contract uniform across all `__main__.py` files |
 | Packages with their own CLI run it when args are given | No-args = listing; args = action |
-| Printing confined to `_print_commands()` (Patterns 1 & 2) or `argparse` (Pattern 3) | Side-effect isolation; keeps listing logic testable without capturing stdout from arbitrary call sites |
+| Printing confined to `_print_commands()` / optional `_cli.print_commands` (Patterns 1 & 2) or `argparse` (Pattern 3) | Side-effect isolation; keeps listing logic testable without capturing stdout from arbitrary call sites |
 | Nodes using `add_subparsers()` MUST declare `subcommands()`; pure flag-based leaves declare nothing | Argparse subparsers are a structural surface the agent navigates; making them implicit leaves the surface impoverished |
 | `subcommands()` is Pattern 2 + Pattern 3 only | Argparse subparsers exist only on nodes that own a parser; Pattern 1 has none to declare |
 | `subcommands()` names match `add_parser(<name>, ...)` exactly; each must be invocable via `python -m <pkg> <name> --help` (exit 0) | Same audit rigor as `commands()` — no orphans, no phantoms, no name drift |

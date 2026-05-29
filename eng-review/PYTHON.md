@@ -60,4 +60,4 @@ After modifying code, verify:
 1. **Format + safe fixes.** `isort src/` then `black src/` (isort orders imports, then black formats).
 2. **Lint clean.** `pylint src/` passes. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
 3. Test suite passes with 0 regressions.
-4. No `print()` statements in business logic. `print()` is permitted only in CLI entry files (`__main__.py`) via `_print_commands()` (Patterns 1 & 2) or `argparse` output (Pattern 3) — see [`../arch-coherence/CLI.md`](../arch-coherence/CLI.md). No temporary `TODO`s remain.
+4. No `print()` statements in business logic. `print()` is permitted only in CLI entry files (`__main__.py`) via `_print_commands()` — or the optional `_cli.print_commands` it delegates to — (Patterns 1 & 2) or `argparse` output (Pattern 3) — see [`../arch-coherence/CLI.md`](../arch-coherence/CLI.md). No temporary `TODO`s remain.
