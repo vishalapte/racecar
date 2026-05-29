@@ -1,0 +1,118 @@
+# templates/classic/library-pyproject.toml — the library pyproject.
+#
+# Where to put this depends on the project shape (PACKAGING.md §"Scope"):
+#
+#   shape src           -> copy to:  pyproject.toml         (repo root)
+#   shape pypkg         -> copy to:  pypkg/src/pyproject.toml
+#   shape pypkg+djapp   -> copy to:  pypkg/src/pyproject.toml
+#                          (companion: djapp/pyproject.toml from djapp-pyproject.toml)
+#   shape djapp         -> not applicable; use root pyproject.toml directly
+#                          for the deployable
+#
+# Substitute placeholders enclosed in `<...>`:
+#   <project_name>       e.g. "athena"
+#   <x.y.z>              e.g. "0.2.0" -- must match the VERSION file at repo root
+#   <one-line description>
+#   <your name>          author name
+#   <email>              author email
+#   <root>               top-level Python package, e.g. "athena"
+#   <runtime dep>        each direct runtime import, e.g. "numpy>=2.0"
+#   <where>              setuptools package source path; see table below
+#   layered DAG rows     replace with the project's actual peers and leaves
+#
+# Lockfile: generated from this file by `pip-tools` (`make lock`). The
+# committed `requirements.txt` is the resolved lockfile.
+#
+# Dev deps are declared in PEP 735 `[dependency-groups]`, not in
+# `[project.optional-dependencies]`. Requires pip >= 25.1 to install the
+# group: `pip install --group dev`.
+
+[project]
+name = "<project_name>"
+version = "<x.y.z>"
+description = "<one-line description>"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "<your name>", email = "<email>" }]
+dependencies = [
+    # direct runtime imports only -- pip-tools resolves transitives into
+    # requirements.txt. Pin major / minor; let pip-compile pick the patch.
+    "<runtime dep>",
+]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+# Canonical dev tool set per PACKAGING.md §6 (PEP 735 dependency group).
+# Identical across racecar projects; modifying this list is a standards-change
+# conversation, not a project-by-project decision.
+[dependency-groups]
+dev = [
+    "black",
+    "isort",
+    "pylint",
+    "pylint-pytest",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pip-audit",
+    "import-linter",
+    "pre-commit",
+    "validate-pyproject",
+]
+
+# Shape-specific. See arch-coherence/PACKAGING.md §"Scope":
+#   shape src           ->  where = ["src"]
+#   shape pypkg         ->  where = ["."]              (relative to pypkg/src/)
+#   shape pypkg+djapp   ->  where = ["."]              (relative to pypkg/src/)
+[tool.setuptools.packages.find]
+where = ["<where>"]
+
+[tool.black]
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint."MESSAGES CONTROL"]
+# Project-specific disables go here; keep this list short and justified.
+# disable = ["missing-module-docstring"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "."]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.coverage.run]
+# Measure coverage of the library package only. Substitute <root>.
+source = ["<root>"]
+branch = true
+
+[tool.coverage.report]
+# Skip uninteresting lines from the report.
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+]
+# Projects may add `fail_under = N` here to gate `make coverage` on a
+# minimum percentage; racecar does not impose a default threshold.
+
+[tool.importlinter]
+root_package = "<root>"
+
+[[tool.importlinter.contracts]]
+name = "<root>: layered DAG"
+type = "layers"
+layers = [
+    # top -- consumers (depend on everything below)
+    "<root>.<consumer_a> | <root>.<consumer_b>",
+    # middle -- data / types peers (independent of each other; may depend on leaves)
+    "<root>.<data_a> | <root>.<data_b>",
+    # leaf -- foundation (no internal dependencies)
+    "<root>.<leaf>",
+]

@@ -1,0 +1,29 @@
+# templates/classic/djapp-pyproject.toml -- the Django app pyproject.
+#
+# Applies to Shape pypkg+djapp only (PACKAGING.md §"Scope"). Copy to:
+#
+#   djapp/pyproject.toml
+#
+# This file is intentionally minimal: it exists so pip-tools can resolve a
+# `djapp/requirements.txt` lockfile and so the racecar checker can audit
+# the declared Django runtime deps.
+#
+# It deliberately does not declare:
+#   [project]         -- djapp is not a publishable package; no version, no name
+#   [build-system]    -- djapp is not pip-installable as a wheel; it runs via manage.py
+#   [tool.*]          -- tool configs live in the library pyproject (pypkg/src/pyproject.toml)
+#                        and are reused via the Makefile's `--config` / `--rcfile` flags
+#
+# The import-linter contract in the library pyproject prevents the library
+# from importing django even though django is installed in the shared venv.
+#
+# Requires pip >= 25.1 for `pip install --group runtime`. Lockfile generated
+# via `make lock` (runs `pip-compile --group runtime djapp/pyproject.toml`).
+
+[dependency-groups]
+runtime = [
+    # Django and its app-runtime peers. Pin major; let pip-compile pick patch.
+    "django>=5.0,<6.0",
+    # Add the rest of the djapp's runtime dependencies here.
+    # "djangorestframework>=3.15",
+]

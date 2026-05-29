@@ -1,21 +1,33 @@
-# Template: copy to <project_root>/.pre-commit-config.yaml (add leading dot on copy).
-# Classic variant: black + isort + pylint. For most new projects, prefer the ruff variant.
+# templates/classic/pre-commit-config.yaml — copy to project root as
+# `.pre-commit-config.yaml` (add leading dot on copy).
+#
+# After copying, run `pre-commit autoupdate` to bump the pinned revs to
+# current upstream versions. The pins below are the latest known at template
+# write time; they intentionally fall out of date. Schedule a periodic
+# `pre-commit autoupdate` in the project (e.g. as part of CHANGELOG cuts).
 
 repos:
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-      - id: black
-
+  # isort first (orders imports), then black (formats the result, including the
+  # reordered imports). Reverse order would force black to run twice.
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
 
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
   - repo: https://github.com/seddonym/import-linter
     rev: v2.1
     hooks:
       - id: import-linter
+
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.25
+    hooks:
+      - id: validate-pyproject
 
   - repo: local
     hooks:

@@ -1,11 +1,14 @@
 # templates/classic/Makefile — copy to project root (no rename needed).
-# Classic variant using black + isort + pylint.
-# `make help` lists every target. `make check` is the canonical verification gate.
+#
+# Canonical Makefile for racecar Python projects. `make help` lists every
+# target. `make check` is the canonical verification gate.
 #
 # Tools are invoked as `$(PYTHON) -m <tool>` / `$(BIN)/<tool>` (never bare
 # names), so no target requires an *activated* venv — `make check` works from a
 # cold shell, sidestepping the GNU Make 3.81 (macOS) PATH-export bug where
 # `export PATH :=` is ignored for non-shell execvp lookups.
+#
+# Requires pip >= 25.1 for `pip install --group <name>` (PEP 735).
 
 # Auto-detect venv (order: .venv, venv, ../venv). Override with `make VENV=...`.
 VENV   := $(firstword $(wildcard .venv venv ../venv))
@@ -16,60 +19,114 @@ PYTHON := $(if $(VENV),$(VENV)/bin/python,python3)
 PIP    := $(PYTHON) -m pip
 BIN    := $(if $(VENV),$(VENV)/bin,$(HOME)/.local/bin)
 
-# Source root to format/lint/type-check. Override: make SRC=pypkg/src
+# Project shape — see arch-coherence/PACKAGING.md §"Scope". Pick exactly one
+# and set the matching variables:
+#
+#   shape: src
+#     SRC=src                    PKG=src/<pkg>         DJAPP=
+#     LIB_PYPROJECT=pyproject.toml
+#     DJAPP_PYPROJECT=
+#
+#   shape: pypkg
+#     SRC=pypkg/src              PKG=pypkg/src/<pkg>   DJAPP=
+#     LIB_PYPROJECT=pypkg/src/pyproject.toml
+#     DJAPP_PYPROJECT=
+#
+#   shape: pypkg+djapp
+#     SRC=pypkg/src              PKG=pypkg/src/<pkg>   DJAPP=djapp
+#     LIB_PYPROJECT=pypkg/src/pyproject.toml
+#     DJAPP_PYPROJECT=djapp/pyproject.toml
+#
+#   shape: djapp
+#     SRC=djapp                  PKG=djapp/<app>       DJAPP=djapp
+#     LIB_PYPROJECT=pyproject.toml
+#     DJAPP_PYPROJECT=
+
+# Source root to format/lint/type-check.
 SRC ?= src
-# Package path or dotted name to audit for architectural coherence.
+# Package path to audit for architectural coherence (full path or dotted name).
 PKG ?= $(SRC)
+# Django app directory; empty when not a Django project.
+DJAPP ?=
+# Path to the library pyproject (used for tool --config and lockfile gen).
+LIB_PYPROJECT   ?= pyproject.toml
+# Path to the djapp pyproject (only Shape pypkg+djapp). Empty otherwise.
+DJAPP_PYPROJECT ?=
+# Library install directory (where pip -e installs from).
+LIB_DIR    := $(if $(filter pyproject.toml,$(LIB_PYPROJECT)),.,$(patsubst %/pyproject.toml,%,$(LIB_PYPROJECT)))
+
 # Extra pytest args, e.g. make test PYTEST_ARGS="-k foo -q"
 PYTEST_ARGS ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help install install-dev check fix fmt fmt-check lint test typecheck \
-        arch docs clean distclean obsidian obsidian-data obsidian-docs
+.PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \
+        test coverage typecheck arch audit docs clean distclean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | sort \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
-# install-dev assumes your project-side pyproject defines a `[dev]` optional
-# extra (the template pyproject leaves [project]/extras project-side).
-install: ## Install runtime deps (editable)
-	$(PIP) install -e .
+$(VENV):
+	python3 -m venv .venv
 
-install-dev: ## Install runtime + dev + test deps (needs project [dev] extra)
-	$(PIP) install -e ".[dev]"
+venv: ## Create .venv if missing (always at .venv/)
+	@test -n "$(VENV)" || $(MAKE) .venv VENV=.venv
 
-check: fmt-check lint test typecheck arch docs ## Canonical gate (CI runs this)
+install: venv ## Bootstrap: editable library install (resolves deps from pyproject)
+	$(PIP) install --upgrade 'pip>=25.1'
+	$(PIP) install -e $(LIB_DIR)
+	@if [ -n "$(DJAPP_PYPROJECT)" ]; then \
+	  $(PIP) install --group $(DJAPP_PYPROJECT):runtime; \
+	fi
+
+install-dev: install ## install + PEP 735 dev group (requires pip >= 25.1)
+	$(PIP) install --group $(LIB_PYPROJECT):dev
+
+check: fmt-check lint test ## Fast gate (~30s; pre-commit cadence)
+
+check-full: ## Full gate (parallel; pre-push / CI cadence) — adds typecheck + arch + docs
+	@$(MAKE) -j fmt-check lint test typecheck arch docs
 
 fix: fmt ## Auto-fix formatting (isort + black)
 
 fmt: ## Format in place (isort orders imports, then black formats)
-	$(PYTHON) -m isort $(SRC)
-	$(PYTHON) -m black $(SRC)
+	$(PYTHON) -m isort --settings-file $(LIB_PYPROJECT) $(SRC) $(DJAPP)
+	$(PYTHON) -m black --config $(LIB_PYPROJECT) $(SRC) $(DJAPP)
 
 fmt-check: ## Check formatting only — no writes
-	$(PYTHON) -m isort --check-only $(SRC)
-	$(PYTHON) -m black --check $(SRC)
+	$(PYTHON) -m isort --check-only --settings-file $(LIB_PYPROJECT) $(SRC) $(DJAPP)
+	$(PYTHON) -m black --check --config $(LIB_PYPROJECT) $(SRC) $(DJAPP)
 
-lint: ## pylint + no-upward-imports pre-commit hook
-	$(PYTHON) -m pylint $(SRC)
-	$(BIN)/pre-commit run no-upward-imports-in-business-modules --all-files
+lint: ## pylint (summary view: count by message code) + no-upward-imports
+	@set -o pipefail; \
+	  $(PYTHON) -m pylint --rcfile $(LIB_PYPROJECT) $(SRC) $(DJAPP) 2>&1 \
+	  | grep -oE '\([a-z-]+\)$$' | sort | uniq -c | sort -rn
+	@$(BIN)/pre-commit run no-upward-imports-in-business-modules --all-files
 
 test: ## pytest; scope via PYTEST_ARGS=... (exit 5 = no tests = ok)
-	@$(PYTHON) -m pytest $(PYTEST_ARGS); status=$$?; \
+	@$(PYTHON) -m pytest -c $(LIB_PYPROJECT) $(PYTEST_ARGS); status=$$?; \
 	  if [ $$status -eq 5 ]; then echo "(no tests collected)"; exit 0; fi; \
 	  exit $$status
 
-typecheck: ## mypy
-	$(PYTHON) -m mypy $(SRC)
+coverage: ## pytest with branch coverage; HTML report at htmlcov/index.html
+	$(PYTHON) -m pytest -c $(LIB_PYPROJECT) \
+	  --cov=$(PKG) --cov-branch \
+	  --cov-report=term-missing --cov-report=html
 
-arch: ## lint-imports + §1 upward + §3 CLI tree (+ Django string-relations)
-	$(BIN)/lint-imports
+typecheck: ## mypy
+	$(PYTHON) -m mypy --config-file $(LIB_PYPROJECT) $(SRC)
+
+arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon (+ Django string-relations)
+	$(BIN)/lint-imports --config $(LIB_PYPROJECT)
 	$(PYTHON) scripts/check_upward_imports.py $$(find $(PKG) -name '*.py')
 	$(PYTHON) scripts/check_cli_commands.py $(PKG)
-	@if [ -f manage.py ]; then $(PYTHON) scripts/check_string_relations.py; \
-	  else echo "arch: skipping check_string_relations (no manage.py — not a Django project)"; fi
+	$(PYTHON) scripts/check_packaging.py
+	@if [ -n "$(DJAPP)" ] && [ -f $(DJAPP)/manage.py ]; then \
+	  $(PYTHON) scripts/check_string_relations.py; \
+	else \
+	  echo "arch: skipping check_string_relations (DJAPP unset or no manage.py)"; \
+	fi
 
 docs: ## doc-coherence mechanical pre-pass (link / §N / vocabulary drift)
 	$(PYTHON) scripts/check_docs.py
@@ -86,44 +143,3 @@ clean: ## Remove caches, *.pyc, .DS_Store, build artifacts (never the venv)
 
 distclean: clean ## clean + remove the virtualenv
 	rm -rf $(VENV)
-
-# Obsidian sync — two modes, so a repo's outputs are browsable on a phone /
-# other devices (the vault is iCloud- or Dropbox-synced). Both MIRROR into a
-# per-repo folder $(OBSIDIAN_DEST)/<org>-<repo>/ — the vault matches the repo
-# and holds nothing extra. `obsidian-data` mirrors $(DATA_DIR)/ → .../data/;
-# `obsidian-docs` collects every all-uppercase *.md ([A-Z]+.md — README,
-# standards docs, ...) anywhere in the repo, preserving tree structure, into
-# .../docs/. `make obsidian` lists the modes; each no-ops when there's nothing
-# to sync.
-OBSIDIAN_DEST ?= $(HOME)/Obsidian
-DATA_DIR      ?= .data
-# Per-repo vault folder <org>-<repo>, derived from `git remote get-url origin`.
-# Override if your vault layout differs: make obsidian-docs OBSIDIAN_SLUG=foo
-OBSIDIAN_SLUG  = $(shell git remote get-url origin 2>/dev/null | sed -E 's|\.git$$||; s|^.*[/:]([^/:]+)/([^/]+)$$|\1-\2|')
-
-obsidian: ## list the obsidian sync modes (obsidian-data / obsidian-docs)
-	@echo "Obsidian sync — mirror into $(OBSIDIAN_DEST)/<org>-<repo>/"
-	@echo "  make obsidian-data   mirror $(DATA_DIR)/ → <org>-<repo>/data/"
-	@echo "  make obsidian-docs   mirror all [A-Z]+.md (whole repo) → <org>-<repo>/docs/"
-
-obsidian-data: ## mirror $(DATA_DIR)/ into <org>-<repo>/data/ in the vault
-	@test -d "$(DATA_DIR)" || { echo "no $(DATA_DIR)/ to sync — nothing to do"; exit 0; }; \
-	 slug='$(OBSIDIAN_SLUG)'; \
-	 test -d "$(OBSIDIAN_DEST)" || { echo "$(OBSIDIAN_DEST) not found (vault symlink missing?)"; exit 1; }; \
-	 test -n "$$slug" || { echo "cannot derive <org>-<repo> from git remote 'origin'"; exit 1; }; \
-	 mkdir -p "$(OBSIDIAN_DEST)/$$slug/data"; \
-	 rsync -a --delete --prune-empty-dirs "$(DATA_DIR)/" "$(OBSIDIAN_DEST)/$$slug/data/"
-
-# Mirror by construction: wipe the docs subtree, then copy exactly the selected
-# files. rsync --delete cannot prune with --files-from, so a fresh copy is the
-# reliable mirror. dest is the dedicated <org>-<repo>/docs subtree, guarded by
-# the non-empty-slug + vault-exists checks before the rm.
-obsidian-docs: ## mirror all [A-Z]+.md (whole repo, tree preserved) into <org>-<repo>/docs/
-	@files=$$(find . -path ./.git -prune -o -path './$(VENV)' -prune -o -type f -name '*.md' -print | grep -E '/[A-Z]+\.md$$' | sed 's|^\./||'); \
-	 test -n "$$files" || { echo "no [A-Z]+.md files to sync — nothing to do"; exit 0; }; \
-	 slug='$(OBSIDIAN_SLUG)'; \
-	 test -d "$(OBSIDIAN_DEST)" || { echo "$(OBSIDIAN_DEST) not found (vault symlink missing?)"; exit 1; }; \
-	 test -n "$$slug" || { echo "cannot derive <org>-<repo> from git remote 'origin'"; exit 1; }; \
-	 dest="$(OBSIDIAN_DEST)/$$slug/docs"; \
-	 rm -rf "$$dest"; mkdir -p "$$dest"; \
-	 printf '%s\n' "$$files" | rsync -a --files-from=- . "$$dest/"
