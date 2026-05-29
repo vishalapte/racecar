@@ -1,10 +1,15 @@
 """Tests for arch-coherence/scripts/check_upward_imports.py.
 
-Builds a fake project under tmp_path with `pyproject.toml` declaring a
-root package, then runs the script with each file as argv. Asserts that
-business modules with `from <root> import ...` are caught, and that
-`__init__.py` / `__main__.py` files are exempt even when they contain
-the same import.
+Builds a fake project under tmp_path with a library `pyproject.toml` declaring
+one or more root packages, then runs the script with each file as argv. Asserts
+that a business module reaching up into the top-level of ITS OWN root package
+(`from <own-root> import ...`) is caught, that the same import in `__init__.py`
+/ `__main__.py` is exempt, and — crucially — that a file under root A importing
+`from B import ...` (B another configured root) is a cross-root dependency and
+is NOT flagged (that is import-linter's concern, not this script's). Covers both
+the singular `root_package` (string) config and the plural `root_packages`
+(list) config, and the pypkg+djapp shape where the library pyproject lives at
+pypkg/src/ (no root pyproject).
 
 Run with:
     pytest arch-coherence/tests/test_check_upward_imports.py
@@ -23,6 +28,38 @@ def _seed_project(tmp_path: Path, *, root: str = "myapp") -> Path:
     (tmp_path / "pyproject.toml").write_text(
         f'[tool.importlinter]\nroot_package = "{root}"\n',
         encoding="utf-8",
+    )
+    return tmp_path
+
+
+def _seed_project_plural(tmp_path: Path, *roots: str) -> Path:
+    listed = ", ".join(f'"{r}"' for r in roots)
+    (tmp_path / "pyproject.toml").write_text(
+        f"[tool.importlinter]\nroot_packages = [{listed}]\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+def _seed_pypkg_djapp(tmp_path: Path, *roots: str) -> Path:
+    """pypkg+djapp shape: NO root pyproject; library pyproject at pypkg/src/.
+
+    detect_shape resolves this shape by the presence of pypkg/src/pyproject.toml
+    and a djapp/ tree (manage.py or pyproject.toml). The root package(s) must be
+    read from pypkg/src/pyproject.toml, not from a (nonexistent) root one.
+    """
+    lib = tmp_path / "pypkg" / "src"
+    lib.mkdir(parents=True)
+    listed = ", ".join(f'"{r}"' for r in roots)
+    (lib / "pyproject.toml").write_text(
+        f"[tool.importlinter]\nroot_packages = [{listed}]\n",
+        encoding="utf-8",
+    )
+    djapp = tmp_path / "djapp"
+    djapp.mkdir()
+    (djapp / "manage.py").write_text("# manage\n", encoding="utf-8")
+    (djapp / "pyproject.toml").write_text(
+        "[dependency-groups]\nruntime = []\n", encoding="utf-8"
     )
     return tmp_path
 
@@ -92,7 +129,7 @@ def test_missing_root_package_key_exits_two(tmp_path: Path) -> None:
     f.write_text("import os\n", encoding="utf-8")
     result = _run(tmp_path, f)
     assert result.returncode == 2
-    assert "root_package missing" in result.stderr
+    assert "root_package" in result.stderr
 
 
 def test_unrelated_import_is_not_flagged(tmp_path: Path) -> None:
@@ -102,3 +139,87 @@ def test_unrelated_import_is_not_flagged(tmp_path: Path) -> None:
     f.write_text("from myapp_other import thing\n", encoding="utf-8")
     result = _run(repo, f)
     assert result.returncode == 0
+
+
+def test_root_packages_plural_is_read(tmp_path: Path) -> None:
+    """A config that uses the plural `root_packages` list resolves correctly."""
+    repo = _seed_project_plural(tmp_path, "myapp", "apps")
+    f = repo / "apps" / "core" / "service.py"
+    f.parent.mkdir(parents=True)
+    f.write_text("from apps import CONFIG\n", encoding="utf-8")
+    result = _run(repo, f)
+    assert result.returncode == 1
+    assert "from apps import CONFIG" in result.stdout
+
+
+def test_per_root_violation_detection_across_two_roots(tmp_path: Path) -> None:
+    """With two roots, a direct import from EITHER root is a violation."""
+    repo = _seed_project_plural(tmp_path, "myapp", "apps")
+    a = repo / "myapp" / "core" / "a.py"
+    a.parent.mkdir(parents=True)
+    a.write_text("from myapp import X\n", encoding="utf-8")
+    b = repo / "apps" / "core" / "b.py"
+    b.parent.mkdir(parents=True)
+    b.write_text("from apps import Y\n", encoding="utf-8")
+    result = _run(repo, a, b)
+    assert result.returncode == 1
+    assert "from myapp import X" in result.stdout
+    assert "from apps import Y" in result.stdout
+
+
+def test_cross_root_import_is_not_flagged(tmp_path: Path) -> None:
+    """A file under root A importing `from B import ...` (B another configured
+    root) is a CROSS-ROOT dependency, not an upward import — import-linter's
+    concern, not this script's. It must NOT be flagged."""
+    repo = _seed_project_plural(tmp_path, "apps", "curricula")
+    f = repo / "apps" / "accounts" / "serializers.py"
+    f.parent.mkdir(parents=True)
+    f.write_text("from curricula import registry\n", encoding="utf-8")
+    result = _run(repo, f)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+
+
+def test_own_root_caught_but_cross_root_ignored_same_file(tmp_path: Path) -> None:
+    """In one file under root A: `from A import x` IS a violation; `from B
+    import x` (B another root) is NOT."""
+    repo = _seed_project_plural(tmp_path, "apps", "curricula")
+    f = repo / "apps" / "accounts" / "views.py"
+    f.parent.mkdir(parents=True)
+    f.write_text(
+        "from curricula import registry\nfrom apps import CONFIG\n",
+        encoding="utf-8",
+    )
+    result = _run(repo, f)
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "from apps import CONFIG" in result.stdout
+    assert "from curricula import registry" not in result.stdout
+
+
+def test_file_under_no_configured_root_is_skipped(tmp_path: Path) -> None:
+    """A file outside every configured root's tree is skipped, not crashed on."""
+    repo = _seed_project_plural(tmp_path, "apps", "curricula")
+    f = repo / "scripts" / "tool.py"
+    f.parent.mkdir(parents=True)
+    f.write_text("from apps import CONFIG\n", encoding="utf-8")
+    result = _run(repo, f)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+
+
+def test_pypkg_djapp_resolves_library_pyproject(tmp_path: Path) -> None:
+    """pypkg+djapp shape: no root pyproject; roots read from pypkg/src/pyproject.toml."""
+    repo = _seed_pypkg_djapp(tmp_path, "myapp", "apps", "core", "project")
+    f = repo / "apps" / "billing" / "views.py"
+    f.parent.mkdir(parents=True)
+    f.write_text("from apps import SETTINGS\n", encoding="utf-8")
+    result = _run(repo, f)
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "from apps import SETTINGS" in result.stdout
+
+
+def test_pypkg_djapp_clean_passes(tmp_path: Path) -> None:
+    repo = _seed_pypkg_djapp(tmp_path, "myapp", "apps", "core", "project")
+    f = repo / "core" / "models.py"
+    f.parent.mkdir(parents=True)
+    f.write_text("from core.helpers import h\nfrom django.db import models\n", encoding="utf-8")
+    result = _run(repo, f)
+    assert result.returncode == 0, (result.stdout, result.stderr)

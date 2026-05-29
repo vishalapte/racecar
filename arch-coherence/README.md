@@ -8,7 +8,7 @@ These axioms assume a single rooted package tree. Multi-root monorepos are not a
 
 Pair with [eng-review](../eng-review/README.md) for software-engineering hygiene and [doc-coherence](../doc-coherence/README.md) for prose, cross-references, and file naming.
 
-For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, imports, enforcement) and [DJANGO.md](DJANGO.md) (service layer, view layering). The CLI contract — `__main__.py` patterns plus `commands()` / `subcommands()` / `parser()` plus audit JSON schema — has its own document: [CLI.md](CLI.md).
+For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, imports, enforcement) and [DJANGO.md](DJANGO.md) (service layer, view layering). The CLI contract — `__main__.py` patterns plus `commands()` / `subcommands()` / `parser()` plus audit JSON schema — has its own document: [CLI.md](CLI.md). The project-shell contract — `pyproject.toml` (PEP 517/518/621), `Makefile`, virtualenv discipline, `requirements.txt` via `pip-compile`, racecar's dev tool set, and the PSF/PyPA + community OSS governance rule that excludes VC-backed tooling — lives in [PACKAGING.md](PACKAGING.md). PACKAGING.md is one opinion of how to package, parameterized over four supported project shapes (`src`, `pypkg`, `pypkg+djapp`, `djapp`) that share the same infrastructure (pyproject.toml at repo root, requirements.txt lockfile, `make check` gate, racecar dev tool set, no VC-backed tooling).
 
 ## How to use this file
 

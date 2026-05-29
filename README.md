@@ -14,6 +14,9 @@ Load: [arch-coherence/PYTHON.md](arch-coherence/PYTHON.md)
 Topic: CLI surface — `__main__.py` patterns, `commands()` / `subcommands()` / `parser()` contracts, audit JSON schema
 Load: [arch-coherence/CLI.md](arch-coherence/CLI.md)
 
+Topic: Packaging & tooling — racecar's single packaging opinion, parameterized over four supported project shapes (`src`, `pypkg`, `pypkg+djapp`, `djapp`): `pyproject.toml` (PEP 517/518/621), `Makefile` contract, virtualenv discipline, `requirements.txt` via `pip-compile`, racecar's dev tool set, PSF/PyPA + community OSS governance (no VC-backed tooling).
+Load: [arch-coherence/PACKAGING.md](arch-coherence/PACKAGING.md)
+
 Topic: Django architectural coherence — framework-specific rules
 Load: [arch-coherence/DJANGO.md](arch-coherence/DJANGO.md)
 
