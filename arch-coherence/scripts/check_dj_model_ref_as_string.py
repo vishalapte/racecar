@@ -37,7 +37,7 @@ arch-coherence acyclicity axiom makes a Blocker. The DAG annotation makes
 the worst variant — upward layer crossings — explicit.
 
 Usage:
-    python scripts/check_string_relations.py
+    python scripts/check_dj_model_ref_as_string.py
 
 Exits 0 if clean, 1 if any violation is found, 2 on configuration error.
 """
@@ -64,7 +64,7 @@ _INSTALLED_APPS_SCRIPT = (
 def _load_pyproject() -> dict:
     pyproject = Path("pyproject.toml")
     if not pyproject.is_file():
-        print("check_string_relations: pyproject.toml not found", file=sys.stderr)
+        print("check_dj_model_ref_as_string: pyproject.toml not found", file=sys.stderr)
         sys.exit(2)
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
 
@@ -74,13 +74,13 @@ def _root_packages(data: dict) -> list[str]:
         roots = data["tool"]["importlinter"]["root_packages"]
     except KeyError:
         print(
-            "check_string_relations: [tool.importlinter].root_packages missing from pyproject.toml",
+            "check_dj_model_ref_as_string: [tool.importlinter].root_packages missing from pyproject.toml",
             file=sys.stderr,
         )
         sys.exit(2)
     if not isinstance(roots, list) or not all(isinstance(r, str) for r in roots):
         print(
-            "check_string_relations: [tool.importlinter].root_packages must be a list of strings",
+            "check_dj_model_ref_as_string: [tool.importlinter].root_packages must be a list of strings",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -103,11 +103,8 @@ def _installed_apps() -> list[str]:
     if override is not None:
         return [s.strip() for s in override.split(",") if s.strip()]
     if not Path("manage.py").is_file():
-        print(
-            "check_string_relations: manage.py not found and STRING_RELATIONS_INSTALLED_APPS unset",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        print("check_dj_model_ref_as_string: not a Django project (no manage.py) — skipping")
+        sys.exit(0)
     result = subprocess.run(
         [sys.executable, "manage.py", "shell", "-c", _INSTALLED_APPS_SCRIPT],
         capture_output=True,
@@ -116,7 +113,7 @@ def _installed_apps() -> list[str]:
     )
     if result.returncode != 0:
         print(
-            f"check_string_relations: manage.py shell failed (exit {result.returncode}):\n{result.stderr}",
+            f"check_dj_model_ref_as_string: manage.py shell failed (exit {result.returncode}):\n{result.stderr}",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -124,7 +121,7 @@ def _installed_apps() -> list[str]:
         if line.startswith("__INSTALLED_APPS__="):
             return json.loads(line[len("__INSTALLED_APPS__=") :])
     print(
-        "check_string_relations: could not parse INSTALLED_APPS from manage.py output",
+        "check_dj_model_ref_as_string: could not parse INSTALLED_APPS from manage.py output",
         file=sys.stderr,
     )
     sys.exit(2)
@@ -219,10 +216,10 @@ def _annotate(
 
 
 def main() -> int:
+    installed = _installed_apps()
     data = _load_pyproject()
     roots = _root_packages(data)
     layers = _dag_layers(data)
-    installed = _installed_apps()
 
     live: list[str] = []
     noop: list[str] = []
@@ -231,7 +228,7 @@ def main() -> int:
         root_dir = Path(root)
         if not root_dir.is_dir():
             print(
-                f"check_string_relations: root package '{root}' not on disk; skipping",
+                f"check_dj_model_ref_as_string: root package '{root}' not on disk; skipping",
                 file=sys.stderr,
             )
             continue

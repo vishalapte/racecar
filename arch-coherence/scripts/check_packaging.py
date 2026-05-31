@@ -54,6 +54,7 @@ CANON_DEV_TOOLS = [
     "pytest-cov",
     "pip-audit",
     "import-linter",
+    "pip-tools",
     "pre-commit",
     "validate-pyproject",
 ]
@@ -61,7 +62,6 @@ CANON_DEV_TOOLS = [
 CANON_REQUIRES_PYTHON = ">=3.12"
 CANON_BLACK_TARGET = ["py312"]
 CANON_ISORT_PROFILE = "black"
-CANON_MYPY_PYTHON = "3.12"
 CANON_BUILD_REQUIRES = ["setuptools>=64"]
 CANON_BUILD_BACKEND = "setuptools.build_meta"
 
@@ -113,6 +113,7 @@ REQUIRED_MAKEFILE_TARGETS = {
     "help",
     "install",
     "install-dev",
+    "lock",
     "check",
     "check-full",
     "fix",
@@ -127,6 +128,7 @@ REQUIRED_MAKEFILE_TARGETS = {
     "docs",
     "clean",
     "distclean",
+    "system-deps",
 }
 
 FORBIDDEN_MAKEFILE_TOOLS = {"uv", "ruff", "poetry", "pdm", "pipenv"}
@@ -420,13 +422,25 @@ def check_library_pyproject(root: Path, pyproject_path: Path) -> tuple[list[Find
         )
 
     mypy = tool.get("mypy", {}) or {}
-    if mypy.get("python_version") != CANON_MYPY_PYTHON:
+    rp = (data.get("project") or {}).get("requires-python", "")
+    m = re.search(r"(\d+\.\d+)", rp) if rp else None
+    expected_mypy_python = m.group(1) if m else None
+    if expected_mypy_python is None:
         findings.append(
             Finding(
                 "Blocker",
                 label,
                 "[tool.mypy].python_version",
-                f"must be {CANON_MYPY_PYTHON!r}; got {mypy.get('python_version')!r}",
+                "cannot derive expected value: [project].requires-python is missing or unparseable",
+            )
+        )
+    elif mypy.get("python_version") != expected_mypy_python:
+        findings.append(
+            Finding(
+                "Blocker",
+                label,
+                "[tool.mypy].python_version",
+                f"must match requires-python ({expected_mypy_python!r}); got {mypy.get('python_version')!r}",
             )
         )
     if mypy.get("strict") is not True:
@@ -475,17 +489,30 @@ def _pylint_disable(tool: dict[str, Any]) -> list[str] | None:
 
 
 def _check_pylint_canon(tool: dict[str, Any], label: str) -> list[Finding]:
+    master = (tool.get("pylint", {}).get("MASTER", {}) or {})
+    master_ignore = master.get("ignore-paths", []) or []
+    findings: list[Finding] = []
+    if not any("^scripts/" in str(p) for p in master_ignore):
+        findings.append(
+            Finding(
+                "Blocker",
+                label,
+                "[tool.pylint.MASTER].ignore-paths",
+                "must include '^scripts/' to exclude vendored racecar check scripts from doc-coherence checks",
+            )
+        )
+
     disable = _pylint_disable(tool)
     if disable is None:
-        return [
+        findings.append(
             Finding(
                 "Blocker",
                 label,
                 "[tool.pylint] disable",
                 'missing canonical pylint disable set; see PACKAGING.md "pylint canon"',
             )
-        ]
-    findings: list[Finding] = []
+        )
+        return findings
     present = set(disable)
     for code in sorted(CANON_PYLINT_REQUIRED_DISABLE - present):
         findings.append(
@@ -883,6 +910,16 @@ def check_gitignore(root: Path) -> list[Finding]:
 _MAKEFILE_TARGET_RE = re.compile(r"^([a-zA-Z_][\w-]*)\s*:", re.MULTILINE)
 
 
+def _target_body(text: str, target: str) -> str:
+    """Return the recipe lines (tab-indented) for a named target, or '' if absent."""
+    m = re.search(
+        rf"^{re.escape(target)}\s*:[^\n]*\n((?:[\t][^\n]*\n?)*)",
+        text,
+        re.MULTILINE,
+    )
+    return m.group(1) if m else ""
+
+
 def check_makefile(root: Path) -> list[Finding]:
     path = root / "Makefile"
     if not path.exists():
@@ -927,6 +964,107 @@ def check_makefile(root: Path) -> list[Finding]:
                         f"fast `check` should depend on {required!r} (PACKAGING.md §7)",
                     )
                 )
+
+    # install-dev: must depend on install, install the dev group, wire pre-commit.
+    decl = re.search(r"^install-dev\s*:\s*(.*?)(?:##|$)", text, re.MULTILINE)
+    if decl and "install" not in decl.group(1).split():
+        findings.append(
+            Finding(
+                "Blocker",
+                "Makefile",
+                "install-dev:missing-install-dep",
+                "install-dev must depend on 'install' (PACKAGING.md §7)",
+            )
+        )
+    body = _target_body(text, "install-dev")
+    if body and "--group" not in body:
+        findings.append(
+            Finding(
+                "Blocker",
+                "Makefile",
+                "install-dev:pip-group",
+                "install-dev must run 'pip install --group' for the PEP 735 dev group (PACKAGING.md §7)",
+            )
+        )
+    if body and "pre-commit install" not in body:
+        findings.append(
+            Finding(
+                "Blocker",
+                "Makefile",
+                "install-dev:pre-commit-install",
+                "install-dev must run 'pre-commit install' (PACKAGING.md §7)",
+            )
+        )
+
+    # lock must use pip-tools.
+    body = _target_body(text, "lock")
+    if body and "piptools compile" not in body:
+        findings.append(
+            Finding(
+                "Blocker",
+                "Makefile",
+                "lock:piptools-compile",
+                "lock must invoke 'piptools compile' (PACKAGING.md §7)",
+            )
+        )
+
+    # fmt: isort must precede black (DRIFT.md / memory: isort before black).
+    body = _target_body(text, "fmt")
+    if body:
+        isort_pos = body.find("isort")
+        black_pos = body.find("black")
+        if isort_pos == -1 or black_pos == -1 or isort_pos > black_pos:
+            findings.append(
+                Finding(
+                    "Blocker",
+                    "Makefile",
+                    "fmt:isort-before-black",
+                    "fmt must invoke isort before black (PACKAGING.md §7)",
+                )
+            )
+
+    # arch must invoke the canonical check scripts.
+    body = _target_body(text, "arch")
+    for script in ("check_upward_imports.py", "check_packaging.py"):
+        if body and script not in body:
+            findings.append(
+                Finding(
+                    "Blocker",
+                    "Makefile",
+                    f"arch:{script}",
+                    f"arch must invoke scripts/{script} (PACKAGING.md §7)",
+                )
+            )
+
+    # docs must invoke all four doc-coherence scripts.
+    body = _target_body(text, "docs")
+    for script in (
+        "check_docs.py",
+        "check_todo_format.py",
+        "check_claude_shape.py",
+        "check_file_placement.py",
+    ):
+        if body and script not in body:
+            findings.append(
+                Finding(
+                    "Blocker",
+                    "Makefile",
+                    f"docs:{script}",
+                    f"docs must invoke scripts/{script} (PACKAGING.md §7)",
+                )
+            )
+
+    # help must use ##@ section markers.
+    body = _target_body(text, "help")
+    if body and "##@" not in body:
+        findings.append(
+            Finding(
+                "Finding",
+                "Makefile",
+                "help:no-section-markers",
+                "help should use ##@ section markers to group non-canon targets (PACKAGING.md §7)",
+            )
+        )
 
     return findings
 

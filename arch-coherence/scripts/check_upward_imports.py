@@ -25,7 +25,11 @@ same shape detection as check_packaging.py: the root `pyproject.toml` for the
 shapes.
 
 Usage (invoked by pre-commit):
-    python scripts/check_upward_imports.py <file> [<file> ...]
+    python scripts/check_upward_imports.py [--root <dir>] <file> [<file> ...]
+
+--root defaults to CWD. Pass the directory containing pyproject.toml explicitly
+when invoking from a different working directory (e.g. in a monorepo where the
+script lives at the repo root but pyproject.toml is in a sub-package).
 
 Exits 0 if clean, 1 if any violation is found. Files that match no configured
 root are skipped.
@@ -33,6 +37,7 @@ root are skipped.
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 import tomllib
@@ -41,8 +46,8 @@ from pathlib import Path
 from check_packaging import detect_shape
 
 
-def _root_packages() -> list[str]:
-    shape, _ = detect_shape(Path.cwd())
+def _root_packages(root: Path) -> list[str]:
+    shape, _ = detect_shape(root)
     pyproject = shape.library_pyproject
     if pyproject is None or not pyproject.is_file():
         print("check_upward_imports: pyproject.toml not found", file=sys.stderr)
@@ -87,13 +92,16 @@ def _check(path: Path, pattern: re.Pattern[str]) -> list[tuple[int, str]]:
 
 
 def main(argv: list[str]) -> int:
-    roots = set(_root_packages())
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    args, files = parser.parse_known_args(argv)
+    roots = set(_root_packages(args.root))
     patterns: dict[str, re.Pattern[str]] = {
         root: re.compile(rf"^\s*from\s+{re.escape(root)}\s+import\s+") for root in roots
     }
     skip_suffixes = ("__main__.py", "__init__.py")
     total = 0
-    for arg in argv:
+    for arg in files:
         path = Path(arg)
         if path.name in skip_suffixes or not path.is_file():
             continue

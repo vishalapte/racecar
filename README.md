@@ -9,7 +9,7 @@ Racecar is a deterministic, agent-loaded code-review framework for Python and Dj
     git clone <this-repo>
     ./install
 
-Then use the `/racecar*` slash commands in Claude Code (`/racecar` routes; `/racecar-arch-coherence`, `/racecar-doc-coherence`, `/racecar-eng-review`, `/racecar-llm-summary` are the lenses). To adopt the standards in your own project, scaffold it with `make init <shape>` (the project-scaffolding entry point) and read [`arch-coherence/PACKAGING.md`](arch-coherence/PACKAGING.md), which defines the four supported project shapes.
+Then use the `/racecar*` slash commands in Claude Code (`/racecar` routes; `/racecar-arch-coherence`, `/racecar-doc-coherence`, `/racecar-eng-review`, `/racecar-llm-summary` are the lenses). To adopt the standards in your own project, scaffold it with `make init ARGS="--shape <shape> --name <name> --package <pkg> --dest <path>"` and follow [`ADOPT.md`](ADOPT.md) for the full procedure (shape selection, post-scaffold steps, and syncing scripts to an existing repo).
 
 ## A check catching a violation
 

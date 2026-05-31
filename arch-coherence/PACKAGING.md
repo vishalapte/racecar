@@ -30,7 +30,7 @@ What changes between shapes:
 - The presence and location of the djapp pyproject (only Shape pypkg+djapp).
 - Whether a `requirements.txt` lockfile is committed at all — it's **optional** (see §5). If committed, the standard location is alongside the pyproject (`requirements.txt` at root for shapes `src`/`djapp`, `pypkg/src/requirements.txt` for `pypkg`/`pypkg+djapp`; `pypkg+djapp` may additionally have `djapp/requirements.txt`).
 - The Makefile's `SRC`, `PKG`, `DJAPP`, `LIB_PYPROJECT`, `DJAPP_PYPROJECT` values.
-- For Shape `pypkg+djapp` and `djapp`: presence of `djapp/manage.py` triggers the Django-specific audit (`scripts/check_string_relations.py`) and pre-commit hook automatically.
+- For Shape `pypkg+djapp` and `djapp`: presence of `djapp/manage.py` triggers the Django-specific audit (`scripts/check_dj_model_ref_as_string.py`) and pre-commit hook automatically.
 
 Versioning details (library-only version in `[project].version`; djapp pyproject has no `[project]` block and no version) are covered in §8.
 
@@ -289,6 +289,33 @@ dev = [
 - `bandit` — code-level security linting is project-specific; pip-audit covers the dependency-CVE axis.
 - `pip-tools` — see §5; no lockfile workflow in canon.
 
+### Shape-specific sidecar groups
+
+`[dependency-groups].dev` is the universal canon. Shape-specific tools that don't belong in the universal list go in a named sidecar group installed alongside `dev`. The checker only validates `dev`; sidecar groups are invisible to it.
+
+**`djapp` shape — `django` group.** Django projects add a `django` dependency group for tools that are either Django-specific or required because Django's test runner replaces pytest:
+
+```toml
+[dependency-groups]
+django = [
+    "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
+    "django-debug-toolbar>=4.0",  # local dev; wired in INSTALLED_APPS
+    "drf-spectacular[sidecar]>=0.27",  # OpenAPI schema + Swagger UI (DRF projects)
+    "pylint-django>=2.5",         # suppresses false-positive E1101 on Django model fields
+]
+```
+
+The `install-dev` Makefile target auto-detects Django and installs the `django` group if any dependency string starting with `"django` is found in the library pyproject:
+
+```makefile
+install-dev: install
+	$(PIP) install --group $(LIB_PYPROJECT):dev
+	$(BIN)/pre-commit install
+	@if grep -qi '"django' $(LIB_PYPROJECT); then $(PIP) install --group $(LIB_PYPROJECT):django; fi
+```
+
+Projects that do not use DRF may omit `drf-spectacular`. Projects not using debug-toolbar may omit it. `coverage` and `pylint-django` are expected on all djapp-shape projects.
+
 ## 7. Makefile contract
 
 This is the most racecar-specific section in the file. PEPs do not define a `Makefile` shape for Python projects, and many projects use `tox` / `nox` / shell scripts instead of Make. Racecar requires Make and prescribes a target surface so every project's developer experience (`make check`, `make install`, etc.) is identical. The targets *inside* the file (calling `black`, `pytest`, `mypy`, etc.) are mainstream tool invocations; the *contract* — exactly which targets exist, what they chain, what `make check` includes — is racecar's.
@@ -315,8 +342,9 @@ Every project's `make help` lists the same targets:
 | `test` | `pytest -c $(LIB_PYPROJECT)`, scoped via `PYTEST_ARGS`; exit 5 (no tests collected) treated as success |
 | `coverage` | `pytest --cov=$(PKG) --cov-branch --cov-report=term-missing --cov-report=html`; HTML at `htmlcov/index.html` |
 | `typecheck` | `mypy --config-file $(LIB_PYPROJECT) $(SRC)` |
-| `arch` | `lint-imports --config $(LIB_PYPROJECT)`, `check_upward_imports`, `check_cli_commands`, `check_packaging` (+ `check_string_relations` if Django) |
+| `arch` | `lint-imports --config $(LIB_PYPROJECT)`, `check_upward_imports`, `check_cli_commands`, `check_packaging` (+ `check_dj_model_ref_as_string` if Django) |
 | `docs` | `check_docs.py` mechanical pre-pass |
+| `system-deps` | Install system-level dependencies not available via pip (idempotent; called by `install`) |
 | `clean` | Remove caches and build artifacts — *never* data or `.venv` |
 | `distclean` | `clean` plus removing `.venv` |
 
@@ -332,7 +360,7 @@ The template uses these variables; overriding any is supported but not part of t
 | `BIN` | `$(VENV)/bin` or `~/.local/bin` | Where to find tool entry-points (`lint-imports`, `pre-commit`) |
 | `SRC` | `src` | Source root to format/lint/type-check |
 | `PKG` | `$(SRC)` | Package path for architectural checks |
-| `DJAPP` | empty | Django app directory; triggers `check_string_relations.py` when set |
+| `DJAPP` | empty | Django app directory; triggers `check_dj_model_ref_as_string.py` when set |
 | `LIB_PYPROJECT` | `pyproject.toml` | Library pyproject path (location varies by shape — see §"Scope") |
 | `DJAPP_PYPROJECT` | empty | djapp pyproject path (only Shape pypkg+djapp) |
 | `PYTEST_ARGS` | empty | Pass-through pytest args, e.g. `make test PYTEST_ARGS="-k foo -q"` |
@@ -358,6 +386,7 @@ These are racecar's call, the natural consequence of the two-root `fmt`/`arch` i
 - **Tools invoked via `$(PYTHON) -m <tool>` or `$(BIN)/<tool>`** — never bare names. This is why no target needs an *activated* venv; it also sidesteps the GNU Make 3.81 (macOS) PATH-export bug.
 - **`clean` is safe to run any time.** It removes caches (`__pycache__`, `.mypy_cache`, `.pytest_cache`, `.import_linter_cache`) and build artifacts (`build/`, `dist/`, `*.egg-info/`, coverage outputs). It never removes data directories, the venv, or anything a developer would not want to lose.
 - **`distclean` extends `clean` by removing `.venv/`.** Use when reproducing from scratch or after a Python upgrade.
+- **`system-deps` installs OS-level dependencies that pip cannot provide** (e.g. `poppler` for `pdftotext`, `wkhtmltopdf`, `ffmpeg`). `install` depends on it, so a cold `make install` always runs it. The implementation lives in `scripts/install_system_deps.sh` (copy from `templates/classic/install_system_deps.sh`). The script must be idempotent — it checks for each command's presence before installing. Projects with no system deps keep the stub with no calls.
 - **Project-specific targets are allowed** below the canonical surface (e.g. data sync, custom workflows), as long as the canonical targets above keep their contracts.
 
 ## 8. Versioning and `CHANGELOG.md`

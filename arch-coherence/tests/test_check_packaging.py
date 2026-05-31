@@ -50,6 +50,7 @@ dev = [
     "pytest-cov",
     "pip-audit",
     "import-linter",
+    "pip-tools",
     "pre-commit",
     "validate-pyproject",
 ]
@@ -80,6 +81,9 @@ disable = [
 python_version = "3.12"
 strict = true
 
+[tool.pylint.MASTER]
+ignore-paths = ["^scripts/"]
+
 [tool.importlinter]
 root_package = "myapp"
 """
@@ -104,11 +108,11 @@ runtime = ["django>=5.0,<6.0"]
 """
 
 CANON_MAKEFILE = """\
-.PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \\
-        test coverage typecheck arch audit docs clean distclean
+.PHONY: help venv install install-dev lock check check-full fix fmt fmt-check lint \\
+        test coverage typecheck arch audit docs clean distclean system-deps
 
 help: ## h
-\t@true
+\t@awk '/^##@/{printf "\\n%s\\n",substr($$0,5)} /^[a-zA-Z_-]+:.*?## /{printf "  %-14s %s\\n",$$1,$$2}' $(MAKEFILE_LIST)
 
 venv: ## v
 \t@true
@@ -116,8 +120,12 @@ venv: ## v
 install: ## i
 \t@true
 
-install-dev: ## i
-\t@true
+install-dev: install ## i
+\t$(PIP) install --group pyproject.toml:dev
+\t$(BIN)/pre-commit install
+
+lock: ## l
+\t$(PYTHON) -m piptools compile --no-emit-index-url --output-file requirements.txt pyproject.toml
 
 check: fmt-check lint test ## fast gate
 \t@true
@@ -135,7 +143,8 @@ fix: ## f
 \t@true
 
 fmt: ## f
-\t@true
+\t$(PYTHON) -m isort .
+\t$(PYTHON) -m black .
 
 fmt-check: ## fc
 \t@true
@@ -150,16 +159,23 @@ typecheck: ## tc
 \t@true
 
 arch: ## a
-\t@true
+\t$(PYTHON) scripts/check_upward_imports.py src
+\t$(PYTHON) scripts/check_packaging.py
 
 docs: ## d
-\t@true
+\t$(PYTHON) scripts/check_docs.py
+\t$(PYTHON) scripts/check_todo_format.py
+\t$(PYTHON) scripts/check_claude_shape.py
+\t$(PYTHON) scripts/check_file_placement.py
 
 clean: ## c
 \t@true
 
 distclean: ## d
 \t@true
+
+system-deps: ## s
+\tbash scripts/install_system_deps.sh
 """
 
 CANON_PRECOMMIT = """\
@@ -613,7 +629,8 @@ def test_missing_venv_rule_in_gitignore_is_blocker(tmp_path: Path) -> None:
 
 
 def test_missing_makefile_target_is_blocker(tmp_path: Path) -> None:
-    bad = CANON_MAKEFILE.replace("docs: ## d\n\t@true\n\n", "")
+    import re as _re
+    bad = _re.sub(r"docs: ## d\n(?:\t[^\n]*\n)+\n?", "", CANON_MAKEFILE)
     bad = bad.replace(" docs", "")
     repo = _seed_src(tmp_path, Makefile=bad)
     result = _run(repo)

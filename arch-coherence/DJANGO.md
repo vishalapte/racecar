@@ -31,7 +31,7 @@ How models reference each other across modules.
 - **Same-file unqualified strings** — `models.ForeignKey("Foo", ...)` where `Foo` is defined later in the same file is a forward reference inside one module. Architecturally inert. Reorder the class definitions if you want the symbol form; the detector ignores these.
 - **Files under `migrations/`** — Django generates these mechanically and `app_label.model` strings are how migrations serialize relationships. Not hand-written architectural choices; the detector skips them.
 
-**Detection.** `scripts/check_string_relations.py` enforces this rule across every package listed in `[tool.importlinter].root_packages`. It cross-references Django's `INSTALLED_APPS` (read via `manage.py shell`) and the layered DAG from `[tool.importlinter].contracts`, then reports two sections:
+**Detection.** `scripts/check_dj_model_ref_as_string.py` enforces this rule across every package listed in `[tool.importlinter].root_packages`. It cross-references Django's `INSTALLED_APPS` (read via `manage.py shell`) and the layered DAG from `[tool.importlinter].contracts`, then reports two sections:
 
 - **LIVE** — file's app is in `INSTALLED_APPS`. Each entry is annotated with the file's DAG layer and, when the target app resolves, the target's layer plus an `UPWARD DAG cross` flag if the target sits above the file. A Blocker.
 - **NOOP** — file's app is NOT in `INSTALLED_APPS`. Django will not load these models; the violation is dead code. Decide between deletion and registration.

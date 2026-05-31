@@ -41,10 +41,10 @@ Five tools enforce the coherence rules:
 - `import-linter` checks acyclicity and direction ([`README.md`](README.md) checks 1–2).
 - `scripts/check_upward_imports.py` enforces §1 (no upward imports from business modules to the root package), file-by-file.
 - `scripts/check_cli_commands.py` enforces the [CLI contract](CLI.md) — `commands()` / `subcommands()` / `parser()` plus the three patterns plus the audit JSON schema — by walking the CLI tree, confirming every `python -m <pkg>` lists its registered children, introspecting argparse parsers when `parser()` is exposed, and surfacing orphan `__main__.py` files that no parent registers.
-- `scripts/check_string_relations.py` enforces [DJANGO.md §2](DJANGO.md#2-orm-relations) (no cross-module string ORM relations); skipped automatically when the consumer repo has no `manage.py`.
+- `scripts/check_dj_model_ref_as_string.py` enforces [DJANGO.md §2](DJANGO.md#2-orm-relations) (no cross-module string ORM relations); skipped automatically when the consumer repo has no `manage.py`.
 - `scripts/check_docs.py` enforces the [doc-coherence](../doc-coherence/README.md) mechanical pre-pass.
 
-`check_upward_imports.py`, `check_docs.py`, and `check_string_relations.py` are wired into `pre-commit` and run on every commit via `.pre-commit-config.yaml`. `check_cli_commands.py` is a full-tree audit — it shells out `python -m <pkg>` for every node, which is too expensive for a per-commit hook — so it runs via `make arch PKG=<path>`, in CI, or on-demand. The per-project contract (layers, forbidden edges) lives in `pyproject.toml` under `[tool.importlinter]`.
+`check_upward_imports.py`, `check_docs.py`, and `check_dj_model_ref_as_string.py` are wired into `pre-commit` and run on every commit via `.pre-commit-config.yaml`. `check_cli_commands.py` is a full-tree audit — it shells out `python -m <pkg>` for every node, which is too expensive for a per-commit hook — so it runs via `make arch PKG=<path>`, in CI, or on-demand. The per-project contract (layers, forbidden edges) lives in `pyproject.toml` under `[tool.importlinter]`.
 
 For linter configuration and workflow (formatter-as-canonical, no inline suppressions, full-codebase scope), see [`../eng-review/PYTHON.md` §5 Linting & Verification](../eng-review/PYTHON.md#5-linting-verification).
 
@@ -54,7 +54,7 @@ Templates live in [`../templates/classic/`](../templates/classic/) — a single 
    - `arch-coherence/scripts/check_upward_imports.py`
    - `arch-coherence/scripts/check_cli_commands.py`
    - `arch-coherence/scripts/check_packaging.py` (also imported by `check_upward_imports.py` for shape detection)
-   - `arch-coherence/scripts/check_string_relations.py` (Django projects; skipped at runtime otherwise)
+   - `arch-coherence/scripts/check_dj_model_ref_as_string.py` (Django projects; skipped at runtime otherwise)
    - `doc-coherence/scripts/check_docs.py`
 2. In the library pyproject's `[tool.importlinter]`, replace `<root>` with your top-level package name and fill the layer rows with your own packages.
 3. `pre-commit install` to enable the hooks.

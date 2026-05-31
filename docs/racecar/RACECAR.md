@@ -1,11 +1,11 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.5.0"
+  version: "0.7.0"
 target:
   repo: racecar
-  sha: 745cef1
-  date: 2026-05-28
+  sha: HEAD
+  date: 2026-05-31
 bundle:
   - RACECAR.md
 
@@ -38,7 +38,7 @@ entities:
     case: none
     lifecycle: realized
     purpose: A stdlib-only Python script that catches deterministic drift the model is not asked to think about.
-    notes: "Seven ship: check_docs, check_subsystem_docs (doc-coherence); check_upward_imports, check_cli_commands, check_string_relations, check_packaging (arch-coherence); check_brief (llm-summary)."
+    notes: "Seven ship: check_docs, check_subsystem_docs (doc-coherence); check_upward_imports, check_cli_commands, check_dj_model_ref_as_string, check_packaging (arch-coherence); check_brief (llm-summary)."
 
   - name: Finding
     case: none
@@ -80,7 +80,7 @@ entities:
     case: on_disk_managed
     lifecycle: realized
     purpose: A plain `major.minor.patch` text file at the repo root that tracks the framework's release line.
-    notes: "Manually edited per shared/COMMITS.md; current 0.5.0. The packaging canon deprecates VERSION only where a `[project].version` exists to replace it; racecar, having no `[project]` table, is exempt and keeps VERSION as its legitimate version home (commit 745cef1)."
+    notes: "Manually edited per shared/COMMITS.md; current 0.7.0. The packaging canon deprecates VERSION only where a `[project].version` exists to replace it; racecar, having no `[project]` table, is exempt and keeps VERSION as its legitimate version home (commit 745cef1)."
 
   - name: SkillManifest
     case: content_tree
@@ -166,7 +166,7 @@ relationships:
   - from: ProjectTemplate
     to: MechanicalCheck
     cardinality: "1:N"
-    notes: "The classic template wires the checks for a consumer project. Pre-commit (templates/classic/pre-commit-config.yaml): check_upward_imports.py, validate-pyproject, import-linter (and check_string_relations.py / check_docs.py when copied in). Makefile `arch` target: lint-imports + check_upward_imports + check_cli_commands + check_packaging (+ check_string_relations under a DJAPP/manage.py guard); `docs` target: check_docs. check_brief validates briefs in docs/, not source."
+    notes: "The classic template wires the checks for a consumer project. Pre-commit (templates/classic/pre-commit-config.yaml): check_upward_imports.py, validate-pyproject, import-linter (and check_dj_model_ref_as_string.py / check_docs.py when copied in). Makefile `arch` target: lint-imports + check_upward_imports + check_cli_commands + check_packaging (+ check_dj_model_ref_as_string under a DJAPP/manage.py guard); `docs` target: check_docs. check_brief validates briefs in docs/, not source."
 
   - from: Overlay
     to: PointerBlock
@@ -239,7 +239,7 @@ external_surface:
     - verb: make test
       module: Makefile
       args: none
-      behavior: "pytest across arch-coherence/tests, doc-coherence/tests, llm-summary/tests, scripts/tests (eight modules: check_cli_commands, check_packaging, check_string_relations, check_upward_imports, check_docs, check_subsystem_docs, check_brief, sync_claude_md)."
+      behavior: "pytest across arch-coherence/tests, doc-coherence/tests, llm-summary/tests, scripts/tests (eight modules: check_cli_commands, check_packaging, check_dj_model_ref_as_string, check_upward_imports, check_docs, check_subsystem_docs, check_brief, sync_claude_md)."
     - verb: make clean
       module: Makefile
       args: none
@@ -286,9 +286,9 @@ external_surface:
       module: arch-coherence/scripts/check_packaging.py
       signature: "python3 check_packaging.py [--root <path>] [--strict]"
       behavior: "Detect the ProjectShape via detect_shape(); validate the library pyproject ([project] PEP 621 keys, [dependency-groups].dev against the canon tool set, [build-system], no [tool.uv|ruff|poetry|pdm] blocks), the djapp pyproject, the Makefile target surface, .gitignore, .pre-commit-config.yaml, requirements.txt, and CHANGELOG. Two severities (Blocker / Finding); --strict promotes Findings to Blockers. Exit 0 if no Blockers / 1. Pure stdlib. Exports detect_shape(), imported by check_upward_imports."
-    - name: check_string_relations
-      module: arch-coherence/scripts/check_string_relations.py
-      signature: "python3 check_string_relations.py"
+    - name: check_dj_model_ref_as_string
+      module: arch-coherence/scripts/check_dj_model_ref_as_string.py
+      signature: "python3 check_dj_model_ref_as_string.py"
       behavior: "AST-walk every .py under each [tool.importlinter].root_packages dir; flag ORM string-target FKs/O2O/M2M; classify LIVE vs NOOP against INSTALLED_APPS; annotate UPWARD DAG cross by layer."
 ---
 
@@ -312,14 +312,14 @@ User-facing primitives:
 - **Generator** — a skill that produces an artifact, not a review. One ships: `racecar-llm-summary` (this document is its output).
 - **Router** — the umbrella `racecar` skill: a topic-to-component-file resolver. Loaded only when the user says "racecar" generically or is unsure which lens applies.
 - **Overlay** — a behavioral skill that adjusts output style without adding checks. One ships: `racecar-expert-mode` (terse, lead-with-result delivery), installed separately via `make expert`.
-- **MechanicalCheck** — deterministic Python scripts the lenses delegate to: `check_docs.py`, `check_subsystem_docs.py`, `check_upward_imports.py`, `check_cli_commands.py`, `check_string_relations.py`, `check_packaging.py`, `check_brief.py`.
+- **MechanicalCheck** — deterministic Python scripts the lenses delegate to: `check_docs.py`, `check_subsystem_docs.py`, `check_upward_imports.py`, `check_cli_commands.py`, `check_dj_model_ref_as_string.py`, `check_packaging.py`, `check_brief.py`.
 - **ProjectShape** — the packaging vocabulary (`src` / `pypkg` / `pypkg+djapp` / `djapp`) the packaging canon (`arch-coherence/PACKAGING.md`) parameterizes a consumer project over.
 
 ### §1.2 Modules
 
 | Module | Purpose |
 | --- | --- |
-| `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics (`PYTHON.md`, `DJANGO.md`) + the CLI contract (`CLI.md`) + the packaging canon (`PACKAGING.md`) + four enforcement scripts (`check_upward_imports`, `check_cli_commands`, `check_string_relations`, `check_packaging`), each with its own test module. |
+| `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics (`PYTHON.md`, `DJANGO.md`) + the CLI contract (`CLI.md`) + the packaging canon (`PACKAGING.md`) + four enforcement scripts (`check_upward_imports`, `check_cli_commands`, `check_dj_model_ref_as_string`, `check_packaging`), each with its own test module. |
 | `doc-coherence/` | Documentation-coherence lens: update protocol + review lens + two mechanical pre-passes — `check_docs` (link / anchor / §N / vocabulary drift) and `check_subsystem_docs` (every import-linter subsystem owns README + CLAUDE). |
 | `eng-review/` | Engineering-review wrapper: racecar pre-pass → gstack `/plan-eng-review` → racecar post-pass. |
 | `llm-summary/` | This generator's spec + the `check_brief.py` validator. |
@@ -433,8 +433,8 @@ Cross-module contracts that are not user-callable:
 - **The CLI contract — `commands()` / `subcommands()` / `parser()`** → defined in `arch-coherence/CLI.md`; consumed by every `__main__.py` in a consumer project and by `check_cli_commands.py`. `commands() -> list[tuple[str,str]]` lists direct-child `(name, description)` pairs (Pattern 1/2). `subcommands() -> list[tuple[str,str]]` mirrors each `add_parser(...)` call (required on Pattern 2/3 nodes using `add_subparsers()`, forbidden on Pattern 1). `parser() -> argparse.ArgumentParser` returns the parser without calling `parse_args()` so the audit can walk `parser._actions`. All three are pure data functions; printing is confined to `_print_commands()` (Patterns 1/2) or argparse (Pattern 3).
 - **CLI audit JSON (enriched node tree)** → produced by `check_cli_commands.py --json` (schema in `CLI.md §"Audit JSON schema"`); consumed by the `session_discover_cli.py` SessionStart hook, doc generators, and CI. The script enriches (raw audit + resolved `command`/`role`/`description`); each consumer summarizes.
 - **Packaging canon (library + djapp pyproject)** → defined in `arch-coherence/PACKAGING.md`; enforced by `check_packaging.py`. The library pyproject carries `[project]` (PEP 621), `[build-system]`, `[dependency-groups].dev` (PEP 735, = the canon tool set), and all `[tool.*]`; the djapp pyproject (Shape `pypkg+djapp` only) carries `[dependency-groups].runtime` and no `[project]`. No VC-backed tool blocks (`[tool.uv|ruff|poetry|pdm]`) are permitted.
-- **`[tool.importlinter].root_packages` / `.root_package`** → produced by the consumer's library pyproject; consumed by `check_upward_imports.py` (per owning root) and `check_string_relations.py`. `check_packaging.detect_shape()` locates the library pyproject for both. Missing → exit 2.
-- **`[tool.importlinter].contracts`** (`type='layers'`) → produced by consumer; consumed by `import-linter` (external), `check_string_relations.py` (UPWARD-DAG-cross annotation), and `check_subsystem_docs.py` (subsystem resolution). Each layer row may be `"A | B"` for independent peers.
+- **`[tool.importlinter].root_packages` / `.root_package`** → produced by the consumer's library pyproject; consumed by `check_upward_imports.py` (per owning root) and `check_dj_model_ref_as_string.py`. `check_packaging.detect_shape()` locates the library pyproject for both. Missing → exit 2.
+- **`[tool.importlinter].contracts`** (`type='layers'`) → produced by consumer; consumed by `import-linter` (external), `check_dj_model_ref_as_string.py` (UPWARD-DAG-cross annotation), and `check_subsystem_docs.py` (subsystem resolution). Each layer row may be `"A | B"` for independent peers.
 - **`[tool.racecar.subsystem-docs]`** → produced by consumer; consumed by `check_subsystem_docs.py`. Keys `loc_threshold` (int, default 1000) and `exclude` (list, added to defaults).
 - **`[tool.pylint.MASTER].ignore-paths`** → produced by consumer; consumed by `check_docs.py`. `list[regex]`. Absent → empty tuple.
 - **Pointer-block markers / Claude Code hook JSON** → as before: byte-exact BEGIN/END partition of `~/.claude/CLAUDE.md` by `sync_claude_md.py` / `expert_mode.py`; hook stdin `{"tool_input": {...}, "cwd": ...}`, PreToolUse may emit `permissionDecision: allow`. Both bash hooks always exit 0 — racecar never denies, only auto-allows or falls through.
@@ -445,7 +445,7 @@ Cross-module contracts that are not user-callable:
 Racecar has no production / dev split — there is no deployed instance. Every knob is evaluated on the consumer machine.
 
 - `CLAUDE_SKILLS_PATH` / `CLAUDE_MD_PATH` / `CLAUDE_SETTINGS_PATH` — where `./install` writes skill symlinks / the pointer block / the six hook entries. Defaults `~/.claude/skills`, `~/.claude/CLAUDE.md`, `~/.claude/settings.json`.
-- `STRING_RELATIONS_INSTALLED_APPS` — comma-separated app labels; overrides Django app discovery in `check_string_relations.py` (test / CI mode; bypasses `manage.py shell`).
+- `STRING_RELATIONS_INSTALLED_APPS` — comma-separated app labels; overrides Django app discovery in `check_dj_model_ref_as_string.py` (test / CI mode; bypasses `manage.py shell`).
 - `OBSIDIAN_SYNC_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile. CLI flag `--dest` > env var > `dest_root` in `~/.config/obsidian-sync.toml`. No default.
 - `--claude-md` / `--target`, `--settings`, `--dry-run` — `sync_claude_md.py` CLI flags. CLI flag > env var > default.
 - `VENV` — `Makefile` auto-detect (`.venv`, `venv`, `../venv`); first that exists is prepended to `PATH`.
@@ -477,7 +477,7 @@ No secrets. No environment-variant rows because there is no environment split.
 
 10. **Packaging audit (`check_packaging.py`).** Detect the ProjectShape; validate the library + djapp pyprojects, Makefile targets, `.gitignore`, `.pre-commit-config.yaml`, `requirements.txt`, `CHANGELOG`. Blockers fail; Findings fail only under `--strict`. The VERSION-deprecation Finding fires only where `[project].version` exists. Exit 0/1.
 
-11. **Cross-module string-relation check (`check_string_relations.py`).** Read `root_packages`; obtain `INSTALLED_APPS`; AST-walk each root; flag string-target ORM relations; classify LIVE/NOOP; annotate UPWARD DAG cross. Self-references and `settings.AUTH_USER_MODEL` exempt.
+11. **Cross-module string-relation check (`check_dj_model_ref_as_string.py`).** Read `root_packages`; obtain `INSTALLED_APPS`; AST-walk each root; flag string-target ORM relations; classify LIVE/NOOP; annotate UPWARD DAG cross. Self-references and `settings.AUTH_USER_MODEL` exempt.
 
 12. **Brief generation (`/racecar-llm-summary`).** Read `llm-summary/README.md` in full → discovery walk → draft body → derive frontmatter → write `docs/$repo/$REPO.md` → end with `## Confidence` → validate with `check_brief.py`. This brief is the literal artifact of Flow 12 against this repo.
 
@@ -515,7 +515,7 @@ Plugin / extension surfaces:
 - **Self-test.** Owner-driven, no `.github/workflows/`. `make check` = `check-docs` + `check-subsystem-docs` + `pytest` (eight modules) + `check-brief`. racecar itself is **not** one of the four ProjectShapes, so `check_packaging` is not run against racecar's own tree.
 - **Healthcheck / observability.** None — no service. Hook scripts never block; `sync_claude_md.py` prints `created` / `updated` / `already up to date`.
 - **Uninstall.** Not provided for the main install (symlinks + pointer survive a `git rm`). `make expert-uninstall` reverses the overlay.
-- **Tests.** Eight modules: `arch-coherence/tests/{test_check_cli_commands,test_check_packaging,test_check_string_relations,test_check_upward_imports}.py`, `doc-coherence/tests/{test_check_docs,test_check_subsystem_docs}.py`, `llm-summary/tests/test_check_brief.py`, `scripts/tests/test_sync_claude_md.py`. Still untested: `expert_mode.py`, `sync_md_to_obsidian.py`, the two bash hooks, the four Python hooks, and `./install`.
+- **Tests.** Eight modules: `arch-coherence/tests/{test_check_cli_commands,test_check_packaging,test_check_dj_model_ref_as_string,test_check_upward_imports}.py`, `doc-coherence/tests/{test_check_docs,test_check_subsystem_docs}.py`, `llm-summary/tests/test_check_brief.py`, `scripts/tests/test_sync_claude_md.py`. Still untested: `expert_mode.py`, `sync_md_to_obsidian.py`, the two bash hooks, the four Python hooks, and `./install`.
 
 ### §2.11 Weirdness
 

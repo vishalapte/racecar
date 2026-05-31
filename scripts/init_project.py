@@ -59,7 +59,7 @@ SHAPES = ("src", "pypkg", "pypkg+djapp", "djapp")
 # contain every script its own gate calls.
 #   - check_upward_imports.py imports check_packaging (detect_shape), so they
 #     must travel together regardless of shape.
-#   - check_string_relations.py is Django-only at runtime, but the Makefile
+#   - check_dj_model_ref_as_string.py is Django-only at runtime, but the Makefile
 #     guards its invocation (runs only when DJAPP is set and djapp/manage.py
 #     exists), so a non-Django scaffold simply never calls it. Copying it for
 #     all shapes matches the adoption list in PYTHON.md §4 (which presents it
@@ -72,7 +72,7 @@ CHECK_SCRIPTS = (
     "arch-coherence/scripts/check_upward_imports.py",
     "arch-coherence/scripts/check_cli_commands.py",
     "arch-coherence/scripts/check_packaging.py",
-    "arch-coherence/scripts/check_string_relations.py",
+    "arch-coherence/scripts/check_dj_model_ref_as_string.py",
     "doc-coherence/scripts/check_docs.py",
     "doc-coherence/scripts/check_todo_format.py",
     "doc-coherence/scripts/check_claude_shape.py",
@@ -386,7 +386,14 @@ def main(argv: list[str]) -> int:
     print(f"init_project: scaffolded shape {args.shape!r} into {dest}")
     for path in created:
         print(f"  created {path.relative_to(dest)}")
-    print(f"init_project: {len(created)} file(s) created. Next: cd {dest} && make install-dev && make check-full")
+    print(f"init_project: {len(created)} file(s) created.")
+    print(f"Next:")
+    print(f"  1. cd {dest}")
+    print(f"  2. Edit [tool.importlinter] in the library pyproject — replace the")
+    print(f"     placeholder layer with your real package layout (PACKAGING.md §9).")
+    print(f"  3. make install-dev")
+    print(f"  4. .venv/bin/pre-commit install")
+    print(f"  5. make check-full")
     return 0
 
 

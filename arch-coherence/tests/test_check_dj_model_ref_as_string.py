@@ -1,4 +1,4 @@
-"""Tests for scripts/check_string_relations.py.
+"""Tests for scripts/check_dj_model_ref_as_string.py.
 
 Builds a fake project under tmp_path with `[tool.importlinter].root_packages`
 and a `layers` DAG contract in pyproject.toml. Each test seeds violations
@@ -9,7 +9,7 @@ INSTALLED_APPS is injected via the `STRING_RELATIONS_INSTALLED_APPS` env var
 so tests do not require a working `manage.py`.
 
 Run with:
-    pytest arch-coherence/tests/test_check_string_relations.py
+    pytest arch-coherence/tests/test_check_dj_model_ref_as_string.py
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_string_relations.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_dj_model_ref_as_string.py"
 
 
 _PYPROJECT = """\
@@ -242,11 +242,11 @@ def test_missing_pyproject_errors(tmp_path: Path) -> None:
     assert "pyproject.toml not found" in result.stderr
 
 
-def test_missing_installed_apps_source_errors(tmp_path: Path) -> None:
+def test_missing_installed_apps_source_skips(tmp_path: Path) -> None:
     _write(tmp_path / "pyproject.toml", _PYPROJECT)
     _write(tmp_path / "apps" / "activity" / "ib" / "models.py", _CLEAN_MODELS)
 
     result = _run(tmp_path, installed=None)
 
-    assert result.returncode == 2
-    assert "manage.py not found" in result.stderr
+    assert result.returncode == 0
+    assert "not a Django project" in result.stdout

@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall check-docs check-subsystem-docs check-brief test check demo init clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps expert expert-uninstall check-docs check-subsystem-docs check-brief test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -20,7 +20,7 @@ expert-uninstall:
 	$(PYTHON) scripts/expert_mode.py uninstall
 
 install-deps:
-	$(PYTHON) -m pip install --group dev
+	$(PYTHON) -m pip install -q --group dev
 
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
@@ -69,6 +69,23 @@ demo:
 #   make init ARGS="--shape src --name widgets --package widgets --dest /tmp/widgets"
 init:
 	$(PYTHON) scripts/init_project.py $(ARGS)
+
+# Sync the canonical check scripts into an existing adopter repo (local racecar clone required).
+# Usage: make sync-scripts DEST=/path/to/repo
+# Adds --dry-run to preview without writing: make sync-scripts DEST=... DRY_RUN=--dry-run
+sync-scripts:
+	$(PYTHON) scripts/sync_scripts.py --dest $(DEST) $(DRY_RUN)
+
+# Smoke-test the remote sync script against a temp dir to verify it fetches from GitHub.
+# REF defaults to main; override with: make sync-remote-test REF=v0.6.0
+REF ?= main
+sync-remote-test:
+	@tmpdir=$$(mktemp -d) && mkdir -p "$$tmpdir/scripts" && \
+	  echo "sync_remote smoke test — fetching ref=$(REF) into $$tmpdir" && \
+	  $(PYTHON) scripts/sync_remote.py --dest "$$tmpdir" --ref $(REF) && \
+	  count=$$(ls "$$tmpdir/scripts/" | wc -l | tr -d ' ') && \
+	  echo "$$count scripts written to $$tmpdir/scripts/" && \
+	  rm -rf "$$tmpdir"
 
 # Remove derived caches/build artifacts only. Never touches the virtualenv
 # (that is the explicit, separate `distclean`) and prunes .git + the venv so
@@ -139,6 +156,8 @@ help:
 	@echo "make check        - run check-docs, check-subsystem-docs, test, and check-brief"
 	@echo "make demo         - run a racecar check against examples/ and show it catching a real violation"
 	@echo "make init ARGS=.. - scaffold a new conforming project from templates/classic/ (see scripts/init_project.py --help)"
+	@echo "make sync-scripts DEST=<path> - sync canonical check scripts into an adopter repo (local clone required)"
+	@echo "make sync-remote-test [REF=<ref>] - smoke-test remote sync by fetching scripts from GitHub into a temp dir"
 	@echo "make clean        - remove caches and build artifacts (never the venv)"
 	@echo "make distclean    - clean + remove the virtualenv"
 	@echo "make obsidian      - list the obsidian sync modes (obsidian-data / obsidian-docs)"

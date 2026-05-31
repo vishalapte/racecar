@@ -32,7 +32,6 @@
 name = "<project_name>"
 version = "<x.y.z>"
 description = "<one-line description>"
-readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "<your name>", email = "<email>" }]
 dependencies = [
@@ -60,8 +59,16 @@ dev = [
     "pytest-cov",
     "pip-audit",
     "import-linter",
+    "pip-tools",
     "pre-commit",
     "validate-pyproject",
+]
+django = [
+    # Django-specific dev tools. Install with: make install-django
+    "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
+    "django-debug-toolbar>=4.0",
+    "drf-spectacular[sidecar]>=0.27",
+    "pylint-django>=2.5",
 ]
 
 # Shape-specific. See racecar's arch-coherence/PACKAGING.md, "Scope":
@@ -137,6 +144,7 @@ load-plugins = ["pylint_pytest"]
 ignore-paths = ["^scripts/"]
 
 [tool.pytest.ini_options]
+addopts = "-q"
 testpaths = ["tests", "."]
 
 [tool.mypy]

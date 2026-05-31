@@ -40,7 +40,7 @@ EXPECTED_CHECK_SCRIPTS = {
     "check_upward_imports.py": "arch-coherence/scripts/check_upward_imports.py",
     "check_cli_commands.py": "arch-coherence/scripts/check_cli_commands.py",
     "check_packaging.py": "arch-coherence/scripts/check_packaging.py",
-    "check_string_relations.py": "arch-coherence/scripts/check_string_relations.py",
+    "check_dj_model_ref_as_string.py": "arch-coherence/scripts/check_dj_model_ref_as_string.py",
     "check_docs.py": "doc-coherence/scripts/check_docs.py",
     "check_todo_format.py": "doc-coherence/scripts/check_todo_format.py",
     "check_claude_shape.py": "doc-coherence/scripts/check_claude_shape.py",
