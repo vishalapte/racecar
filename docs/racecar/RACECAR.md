@@ -4,7 +4,7 @@ generator:
   version: "0.7.0"
 target:
   repo: racecar
-  sha: HEAD
+  sha: 98de435
   date: 2026-05-31
 bundle:
   - RACECAR.md

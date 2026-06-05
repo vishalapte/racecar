@@ -19,6 +19,11 @@ Usage:
     curl -fsSL https://raw.githubusercontent.com/vishalapte/racecar/main/scripts/sync_remote.py \
       | python3 - --dest /path/to/repo --dry-run
 
+    # Also deliver missing templates (Makefile, pre-commit config, gitignore,
+    # system-deps script) — create-if-missing, never overwrites:
+    curl -fsSL https://raw.githubusercontent.com/vishalapte/racecar/main/scripts/sync_remote.py \
+      | python3 - --dest /path/to/repo --templates
+
 Exit codes: 0 always (sync is not a gate).
 """
 
@@ -42,13 +47,49 @@ CHECK_SCRIPTS = (
     "doc-coherence/scripts/check_file_placement.py",
 )
 
+# Templates delivered create-if-missing only (--templates). Existing copies are
+# never overwritten: templates are per-project-customized example artifacts,
+# not canon — drift in an existing Makefile is check_packaging.py's to report,
+# not sync's to clobber. (source path in the racecar repo, target relative to dest)
+TEMPLATE_FILES = (
+    ("templates/classic/Makefile", "Makefile"),
+    ("templates/classic/pre-commit-config.yaml", ".pre-commit-config.yaml"),
+    ("templates/classic/gitignore", ".gitignore"),
+    ("templates/classic/install_system_deps.sh", "scripts/install_system_deps.sh"),
+)
+
 
 def fetch(url: str) -> str:
     with urllib.request.urlopen(url) as resp:  # noqa: S310
         return resp.read().decode("utf-8")
 
 
-def sync(dest: Path, ref: str, dry_run: bool) -> None:
+def _sync_templates(dest: Path, ref: str, dry_run: bool) -> int:
+    """Create-if-missing template delivery from GitHub. Returns count created."""
+    created = 0
+    for rel_source, rel_target in TEMPLATE_FILES:
+        target = dest / rel_target
+        if target.exists():
+            print(f"  exists     {rel_target}  (templates are never overwritten)")
+            continue
+        url = BASE_RAW.format(ref=ref, path=rel_source)
+        try:
+            content = fetch(url)
+        except Exception as exc:
+            print(f"  FETCH ERROR  {rel_source}: {exc}")
+            continue
+        note = "  — set the shape variables" if rel_target == "Makefile" else ""
+        print(f"  created    {rel_target}  (from {rel_source}{note})")
+        created += 1
+        if not dry_run:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            if rel_target.endswith(".sh"):
+                target.chmod(target.stat().st_mode | 0o111)
+    return created
+
+
+def sync(dest: Path, ref: str, dry_run: bool, templates: bool = False) -> None:
     """Fetch canonical scripts from GitHub and write them into dest/scripts/."""
     if not dest.is_dir():
         raise SystemExit(f"sync_remote: {dest} does not exist or is not a directory.")
@@ -82,10 +123,13 @@ def sync(dest: Path, ref: str, dry_run: bool) -> None:
             scripts_dir.mkdir(parents=True, exist_ok=True)
             target.write_text(canonical, encoding="utf-8")
 
+    templates_created = _sync_templates(dest, ref, dry_run) if templates else 0
+
     suffix = " (dry run — no files written)" if dry_run else ""
+    tail = f", {templates_created} template(s) created" if templates else ""
     print(
         f"sync_remote: {created} created, {updated} updated,"
-        f" {unchanged} unchanged{suffix}"
+        f" {unchanged} unchanged{tail}{suffix}"
     )
 
 
@@ -109,13 +153,20 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show what would change without writing any files.",
     )
+    p.add_argument(
+        "--templates",
+        action="store_true",
+        help="Also deliver missing template files (Makefile, .pre-commit-config.yaml, "
+        ".gitignore, scripts/install_system_deps.sh). Create-if-missing only; "
+        "existing files are never overwritten.",
+    )
     return p
 
 
 def main(argv: list[str]) -> int:
     args = parser().parse_args(argv)
     dest = args.dest.expanduser().resolve()
-    sync(dest, ref=args.ref, dry_run=args.dry_run)
+    sync(dest, ref=args.ref, dry_run=args.dry_run, templates=args.templates)
     return 0
 
 

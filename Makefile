@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall check-docs check-subsystem-docs check-brief test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps expert expert-uninstall doctor check-docs check-subsystem-docs check-brief test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -21,6 +21,12 @@ expert-uninstall:
 
 install-deps:
 	$(PYTHON) -m pip install -q --group dev
+
+# Verify the load mechanism layer by layer (files, wiring, hook execution,
+# transcript). Exit 1 on any deterministic failure. FIX=--fix repairs wiring
+# and creates missing symlinks (never clobbers).
+doctor:
+	$(PYTHON) scripts/doctor.py $(FIX)
 
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
@@ -73,8 +79,9 @@ init:
 # Sync the canonical check scripts into an existing adopter repo (local racecar clone required).
 # Usage: make sync-scripts DEST=/path/to/repo
 # Adds --dry-run to preview without writing: make sync-scripts DEST=... DRY_RUN=--dry-run
+# Adds missing scaffolding (create-if-missing): make sync-scripts DEST=... TEMPLATES=--templates
 sync-scripts:
-	$(PYTHON) scripts/sync_scripts.py --dest $(DEST) $(DRY_RUN)
+	$(PYTHON) scripts/sync_scripts.py --dest $(DEST) $(DRY_RUN) $(TEMPLATES)
 
 # Smoke-test the remote sync script against a temp dir to verify it fetches from GitHub.
 # REF defaults to main; override with: make sync-remote-test REF=v0.6.0
@@ -149,6 +156,7 @@ help:
 	@echo "make install-deps     - install python deps from pyproject.toml dev group"
 	@echo "make expert           - install the optional racecar-expert-mode overlay (skill symlink + CLAUDE.md pointer)"
 	@echo "make expert-uninstall - remove the racecar-expert-mode overlay"
+	@echo "make doctor [FIX=--fix] - verify install/wiring/load layer by layer; --fix repairs wiring"
 	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
 	@echo "make check-subsystem-docs - verify every major subsystem in an import-linter layer owns README + CLAUDE"
 	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/<repo>/<REPO>.md"
@@ -156,7 +164,7 @@ help:
 	@echo "make check        - run check-docs, check-subsystem-docs, test, and check-brief"
 	@echo "make demo         - run a racecar check against examples/ and show it catching a real violation"
 	@echo "make init ARGS=.. - scaffold a new conforming project from templates/classic/ (see scripts/init_project.py --help)"
-	@echo "make sync-scripts DEST=<path> - sync canonical check scripts into an adopter repo (local clone required)"
+	@echo "make sync-scripts DEST=<path> [TEMPLATES=--templates] - sync check scripts into an adopter repo; --templates adds missing scaffolding"
 	@echo "make sync-remote-test [REF=<ref>] - smoke-test remote sync by fetching scripts from GitHub into a temp dir"
 	@echo "make clean        - remove caches and build artifacts (never the venv)"
 	@echo "make distclean    - clean + remove the virtualenv"

@@ -78,8 +78,14 @@ Load: [shared/OPERATIONAL.md](shared/OPERATIONAL.md)
 Topic: Glossary — shared terminology for the standards
 Load: [shared/GLOSSARY.md](shared/GLOSSARY.md)
 
-Topic: Commits — message convention and VERSION rules
+Topic: Commits — message convention, type→bump mapping, version-home rules
 Load: [shared/COMMITS.md](shared/COMMITS.md)
+
+Topic: Commit authoring — procedure for drafting a conventional commit with deterministic version bump from the staged diff
+Load: [commit/SKILL.md](commit/SKILL.md)
+
+Topic: Doctor — verify install, wiring, and load layer by layer (deterministic checks + load-token challenge)
+Load: [doctor/SKILL.md](doctor/SKILL.md)
 
 Topic: Expert output mode — terse, high-density delivery for an expert operator (optional overlay, not a review lens; installed separately via `make expert`)
 Load: [expert/README.md](expert/README.md)
@@ -96,7 +102,7 @@ From a fresh clone:
 
 Bash entrypoint, idempotent. Requires `python3` on `PATH` (stdlib only); the script checks upfront and prints an install hint if it's missing. It does three things, all rooted at this checkout's absolute path:
 
-1. **Symlinks** `~/.claude/skills/racecar`, `racecar-arch-coherence`, `racecar-doc-coherence`, `racecar-eng-review`, `racecar-llm-summary` into the matching directories here, so the `/racecar*` slash commands resolve. An existing symlink pointing somewhere else, or a regular file at one of those paths, is refused — never clobbered.
+1. **Symlinks** `~/.claude/skills/racecar`, `racecar-arch-coherence`, `racecar-doc-coherence`, `racecar-eng-review`, `racecar-llm-summary`, `racecar-normalize`, `racecar-doctor`, `racecar-commit` into the matching directories here, so the `/racecar*` slash commands resolve. An existing symlink pointing somewhere else, or a regular file at one of those paths, is refused — never clobbered.
 2. **Pointer block** in `~/.claude/CLAUDE.md` (or `$CLAUDE_MD_PATH`), delimited by `<!-- BEGIN racecar pointer (managed) -->` / `<!-- END racecar pointer (managed) -->` and rewritten in place. Content outside the markers is preserved.
 3. **Hooks** in `~/.claude/settings.json` (or `$CLAUDE_SETTINGS_PATH`), six total: a `PreToolUse` Bash hook (`hooks/compound-command-allow.sh`); a `PostToolUse` Read hook (`hooks/claude_racecar_hook.sh`, which re-fires the pointer sync whenever the agent reads `racecar/README.md`, so the pointer self-heals if the checkout moves); the **decision-log pair** — a `PreCompact` hook (`hooks/precompact_history.py`, matcher `""` = manual + auto) that appends a deterministic compaction marker, and a `SessionStart` hook (`hooks/session_compact_history.py`, matcher `compact`) that prompts the agent to reconcile the log from the transcript after compaction (both target `<repo>/.claude/HISTORY.md`, found by walking up to `.git`, mirror to `~/.claude/history/<repo-kebab>.md`, and **no-op unless that project has a `.claude/HISTORY.md`**, so a project opts in simply by creating one); and the **SessionStart pair** wired on matchers startup/resume/clear/compact — `hooks/session_load_standards.py`, which force-loads racecar's baseline (this README plus every `*.md` under `shared/`) as `additionalContext` so the standards are present whether or not the agent followed the pointer, and `hooks/session_discover_cli.py`, which runs `check_cli_commands.py --json` against the consuming repo and injects the summarized CLI-surface audit tree as `additionalContext` (it discovers CLI roots by scanning the filesystem for direct-child packages of the repo and its `src/` that have both `__init__.py` and `__main__.py`, deliberately ignoring `[project].name` since distribution and import names routinely differ, and no-ops when none are found), so the agent lands already knowing the repo's `python -m <pkg>` surface.
 
@@ -106,4 +112,6 @@ Re-run `./install` any time you move the checkout. Nothing else updates per-mach
 
 ## Bootstrap check
 
-After reading this file: verify that `~/.claude/settings.json` contains a `PostToolUse` hook entry whose `command` path ends with `hooks/claude_racecar_hook.sh`. If it is absent, run `./install`. Do not proceed silently.
+"Loaded" is five layers, and a banner evidences only the weakest: (1) the files exist, (2) the hooks are wired in `settings.json`, (3) the hook executes and emits the baseline, (4) the content entered the session context, (5) the model is conditioning on it. Layers 1-4 are deterministic; layer 5 is not mechanically checkable.
+
+The check: run `make doctor` (or `python3 scripts/doctor.py`) from this checkout — it verifies layers 1-4 and exits nonzero on any deterministic failure, with `--fix` to repair wiring. For layer 5, the standards loader plants a content-derived `Load token:` in the session preamble; "is racecar loaded?" is answered by reproducing that token and one substantive baseline rule from context — an eval, not a proof. The `/racecar-doctor` skill ([doctor/SKILL.md](doctor/SKILL.md)) runs both halves. If doctor reports failures, run `./install`. Do not proceed silently.

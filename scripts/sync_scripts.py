@@ -12,6 +12,7 @@ non-empty destinations).
 Usage:
     python scripts/sync_scripts.py --dest /path/to/repo
     python scripts/sync_scripts.py --dest /path/to/repo --dry-run
+    python scripts/sync_scripts.py --dest /path/to/repo --templates  # + missing templates
 
     # Via Make (from racecar root):
     make sync-scripts DEST=/path/to/repo
@@ -41,13 +42,20 @@ CHECK_SCRIPTS = (
 )
 
 # Scripts synced only when the dest repo contains a manage.py (Django project).
-DJANGO_SCRIPTS = (
-    "arch-coherence/scripts/check_dj_model_ref_as_string.py",
-)
+DJANGO_SCRIPTS = ("arch-coherence/scripts/check_dj_model_ref_as_string.py",)
 
 # Scripts that were renamed; removed from dest/scripts/ on sync to avoid stale copies.
-REMOVED_SCRIPTS = (
-    "check_string_relations.py",
+REMOVED_SCRIPTS = ("check_string_relations.py",)
+
+# Templates delivered create-if-missing only (--templates). Existing copies are
+# never overwritten: templates are per-project-customized example artifacts,
+# not canon — drift in an existing Makefile is check_packaging.py's to report,
+# not sync's to clobber. (source relative to racecar root, target relative to dest)
+TEMPLATE_FILES = (
+    ("templates/classic/Makefile", "Makefile"),
+    ("templates/classic/pre-commit-config.yaml", ".pre-commit-config.yaml"),
+    ("templates/classic/gitignore", ".gitignore"),
+    ("templates/classic/install_system_deps.sh", "scripts/install_system_deps.sh"),
 )
 
 
@@ -70,7 +78,30 @@ def _sync_one(source: Path, target: Path, dry_run: bool) -> str:
     return label
 
 
-def sync(dest: Path, dry_run: bool) -> None:
+def _sync_templates(dest: Path, dry_run: bool) -> int:
+    """Create-if-missing template delivery. Returns count created."""
+    created = 0
+    for rel_source, rel_target in TEMPLATE_FILES:
+        source = REPO_ROOT / rel_source
+        if not source.exists():
+            print(f"  MISSING in racecar: {rel_source} (skipped)")
+            continue
+        target = dest / rel_target
+        if target.exists():
+            print(f"  exists     {rel_target}  (templates are never overwritten)")
+            continue
+        note = "  — set the shape variables" if rel_target == "Makefile" else ""
+        print(f"  created    {rel_target}  (from {rel_source}{note})")
+        created += 1
+        if not dry_run:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            if rel_target.endswith(".sh"):
+                target.chmod(target.stat().st_mode | 0o111)
+    return created
+
+
+def sync(dest: Path, dry_run: bool, templates: bool = False) -> None:
     """Copy canonical scripts into dest/scripts/, reporting each outcome."""
     if not dest.is_dir():
         raise SystemExit(f"sync_scripts: {dest} does not exist or is not a directory.")
@@ -103,10 +134,14 @@ def sync(dest: Path, dry_run: bool) -> None:
             if not dry_run:
                 old.unlink()
 
+    templates_created = _sync_templates(dest, dry_run) if templates else 0
+
     suffix = " (dry run — no files written)" if dry_run else ""
     parts = [f"{created} created", f"{updated} updated", f"{unchanged} unchanged"]
     if removed:
         parts.append(f"{removed} removed")
+    if templates:
+        parts.append(f"{templates_created} template(s) created")
     print(f"sync_scripts: {', '.join(parts)}{suffix}")
 
 
@@ -125,13 +160,20 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show what would change without writing any files.",
     )
+    p.add_argument(
+        "--templates",
+        action="store_true",
+        help="Also deliver missing template files (Makefile, .pre-commit-config.yaml, "
+        ".gitignore, scripts/install_system_deps.sh). Create-if-missing only; "
+        "existing files are never overwritten.",
+    )
     return p
 
 
 def main(argv: list[str]) -> int:
     args = parser().parse_args(argv)
     dest = args.dest.expanduser().resolve()
-    sync(dest, dry_run=args.dry_run)
+    sync(dest, dry_run=args.dry_run, templates=args.templates)
     return 0
 
 

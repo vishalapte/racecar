@@ -3,7 +3,7 @@
 #
 # Pure bash entrypoint. Checks for python3 upfront, then:
 #
-# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize}
+# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-doctor,-commit}
 #    into this checkout, so the /racecar* slash commands resolve.
 # 2. Runs scripts/sync_claude_md.py to manage the pointer block in
 #    ~/.claude/CLAUDE.md and racecar's hooks in ~/.claude/settings.json:
@@ -86,7 +86,9 @@ for entry in \
     "racecar-doc-coherence:$RACECAR_ROOT/doc-coherence" \
     "racecar-eng-review:$RACECAR_ROOT/eng-review" \
     "racecar-llm-summary:$RACECAR_ROOT/llm-summary" \
-    "racecar-normalize:$RACECAR_ROOT/normalize"; do
+    "racecar-normalize:$RACECAR_ROOT/normalize" \
+    "racecar-doctor:$RACECAR_ROOT/doctor" \
+    "racecar-commit:$RACECAR_ROOT/commit"; do
     name="${entry%%:*}"
     target="${entry#*:}"
     if ! link_one "$name" "$target"; then

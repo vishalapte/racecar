@@ -64,6 +64,12 @@ Preview without writing first:
 
 The sync copies only the eight canonical check scripts into `<dest>/scripts/`. It leaves any project-specific scripts in that directory untouched. Unchanged scripts are reported but not rewritten.
 
+**Optionally deliver missing scaffolding** — add `--templates` (direct invocation):
+
+    python3 scripts/sync_scripts.py --dest /path/to/existing/repo --templates
+
+This creates `Makefile`, `.pre-commit-config.yaml`, `.gitignore`, and `scripts/install_system_deps.sh` **only where missing** — existing files are never overwritten, because templates are per-project-customized (drift in an existing Makefile is `check_packaging.py`'s to report, not sync's to clobber). A freshly-created Makefile needs its shape variables set before use.
+
 After syncing, run `make check-full` in the target repo and commit the updated scripts.
 
 ## Path C: remote sync (no local racecar clone)
@@ -85,9 +91,16 @@ For a repo that wants to update its check scripts without having racecar checked
     curl -fsSL https://raw.githubusercontent.com/vishalapte/racecar/main/scripts/sync_remote.py \
       | python3 - --dest . --dry-run
 
+**Also deliver missing scaffolding** (create-if-missing, never overwrites):
+
+    curl -fsSL https://raw.githubusercontent.com/vishalapte/racecar/main/scripts/sync_remote.py \
+      | python3 - --dest . --templates
+
 The `--ref` argument accepts any branch name, tag, or full commit SHA. Default is `main` (latest). Pin to a tag for reproducible updates.
 
 After syncing, run `make check-full` and commit the updated scripts.
+
+This curl one-liner **is the delivery mechanism**: any repo, any machine with Python and curl, no racecar clone. `/racecar-normalize` invokes it automatically as its sync step; running it by hand is the same operation.
 
 ## Makefile help grouping convention
 
@@ -107,4 +120,4 @@ Add `##@` markers only for targets that are not racecar canon. Leave canon targe
 
 The eight check scripts are the canonical source. When racecar updates them, update each adopter repo using Path B or Path C and commit the results. Path B requires a local racecar clone; Path C works from any machine with Python and curl.
 
-The Makefile and pyproject templates do not have an automated sync path — review `diff -u templates/classic/Makefile <repo>/Makefile` manually when the template changes and merge intentionally.
+The Makefile and pyproject templates have a **create-if-missing** path only (`--templates`); an existing copy is never overwritten by any sync. To pick up template changes in an existing file, review `diff -u templates/classic/Makefile <repo>/Makefile` manually and merge intentionally — or fix finding-by-finding from `check_packaging.py` output, which names the expected value per violation.

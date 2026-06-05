@@ -24,6 +24,7 @@ auto-compaction as well.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -31,7 +32,21 @@ from pathlib import Path
 RACECAR_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _collect() -> list[tuple[Path, str]]:
+def load_token(items: list[tuple[Path, str]]) -> str:
+    """Content-derived load token: first 12 hex of sha256 over the baseline.
+
+    Deterministic — same baseline bytes, same token. Planted in the preamble
+    so 'is racecar loaded?' can be answered by reproducing the token from
+    context (challenge-response), not by echoing a banner. scripts/doctor.py
+    recomputes this independently; one home for the computation is here.
+    """
+    digest = hashlib.sha256()
+    for _, body in items:
+        digest.update(body.encode("utf-8"))
+    return digest.hexdigest()[:12]
+
+
+def collect_baseline() -> list[tuple[Path, str]]:
     items: list[tuple[Path, str]] = []
     readme = RACECAR_ROOT / "README.md"
     if readme.is_file():
@@ -50,14 +65,17 @@ def main() -> int:
     except json.JSONDecodeError:
         pass
 
-    items = _collect()
+    items = collect_baseline()
     if not items:
         return 0
 
     file_list = "\n".join(f"  - {p}" for p, _ in items)
     sections = [f"### {path}\n\n{body}" for path, body in items]
+    token = load_token(items)
     preamble = (
         "RACECAR IS LOADED.\n"
+        "\n"
+        f"Load token: {token}\n"
         "\n"
         "The files below are now part of your context. Treat them as already "
         "loaded — do not Read them again, do not describe them as a "
@@ -76,8 +94,13 @@ def main() -> int:
         "task matches a topic, Read the lens file it points to. Per the "
         "README itself: do not load lens files speculatively.\n"
         "\n"
-        "If asked 'is racecar loaded?' the answer is YES — the baseline is "
-        "present in this context; lenses load when a task selects them.\n"
+        "If asked 'is racecar loaded?' the answer is YES — and the evidence "
+        "is the load token above. Reproduce the token and one substantive "
+        "baseline fact (a specific rule from shared/) from context, without "
+        "re-reading any file. Echoing 'RACECAR IS LOADED' alone is assertion, "
+        "not evidence. If you cannot produce the token, the baseline is NOT "
+        "in context — say so and recommend `make doctor` in the racecar "
+        "checkout.\n"
     )
     message = preamble + "\n---\n\n" + "\n\n---\n\n".join(sections)
     # `systemMessage` is the user-visible terminal line. `additionalContext`

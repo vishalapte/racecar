@@ -17,6 +17,11 @@ The opinion accommodates four project shapes. The choice of shape is local to th
 | **`pypkg+djapp`** | Shared installable Python package *plus* a Django app that imports it | `pypkg/src/pyproject.toml` | `djapp/pyproject.toml` | `pypkg/src` | `pypkg/src/<pkg>` | `djapp` |
 | **`djapp`** | Straight Django, no separately-installable package | `pyproject.toml` (root) | — | `djapp` | `djapp/<app>` | `djapp` |
 
+Shape `djapp` has two placements, distinguished by where `manage.py` sits — both are the same shape, same library pyproject at root, same canon:
+
+- **Nested** — `djapp/manage.py`; the table row above (`SRC=djapp`, `DJAPP=djapp`, `PKG=djapp/<app>`).
+- **Standalone** — `manage.py` at repo root; the whole repo *is* the Django project (e.g. an `apps/` + `config/` layout). `SRC=.`, `DJAPP=.`, `PKG` lists the Django package directories at root. `check_packaging.py` detects either placement.
+
 Invariants across all four shapes — these never move:
 
 - One **library pyproject** per project, with the canonical `[project]` table, `[build-system]`, `[dependency-groups].dev` (PEP 735), and all `[tool.*]` configurations (`black`, `isort`, `pylint`, `pytest`, `mypy`, `coverage`, `importlinter`). Its location varies by shape (see table) but its contents are uniform.
