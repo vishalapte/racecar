@@ -39,7 +39,7 @@ Keeping orchestration in `api` means it lives in one place instead of being copi
 
     make init ARGS="--shape src --name myapp --package myapp --dest ./myapp --vertical prices"
 
-or bring an existing project up to standard with `/racecar-upgrade`, which folds racecar in without clobbering your customizations. After that the checks run where you work, in `make check` and your pre-commit hooks.
+or bring an existing project up to standard with `/racecar-upgrade`, which folds racecar in without clobbering your customizations. After that the checks run where you work, in `make check` and your pre-commit hooks. The three adoption paths — new project, existing project with a local racecar clone, existing project without one — are written out in [`ADOPT.md`](ADOPT.md). To see a check fire before you adopt, `make demo` runs racecar against the deliberately-broken sample under [`examples/`](examples/README.md).
 
 **What a check looks like.** `check_upward_imports` enforces that a business module never reaches up into its own root package (only `__init__.py` / `__main__.py` may):
 
@@ -60,3 +60,7 @@ The rest is rationale; you do not need it to use racecar.
 - **Why deterministic checks, not an AI reviewer.** A check either passes or names a file and a line, and it cannot drift the way an AI reviewer drifts, because the detector is far simpler than the code it watches. In a loop where AI writes the code, a verifier that shares the author's blind spots cannot catch the author's mistakes; a mechanical rule does not share them. So racecar mechanizes everything a rule can decide and leaves only the irreducible to judgment.
 - **Where it runs: locally, not as a CI gate.** Enforcement is `pre-commit`, `lint-imports`, and `make check`, on your machine. The owner authorizes; the tooling confirms, it does not decide. A green check is confirmation, not a merge verdict.
 - **The standards are falsifiable.** When a real project diverges because racecar's default is wrong, the standard changes, not the project. Racecar is corrected by the repos it is applied to, not the other way around.
+
+## Releases
+
+The current version is in [`VERSION`](VERSION); notable changes per release are in [`CHANGELOG.md`](CHANGELOG.md). racecar is pre-1.0, so a minor bump may carry breaking changes (the upgrade path is `racecar-upgrade`, which reconciles rather than clobbers).
