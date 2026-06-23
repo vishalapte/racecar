@@ -18,7 +18,7 @@ Topic: Agent persona — interaction style and thought process when applying rac
 Load: [shared/PERSONA.md](shared/PERSONA.md)
 
 Topic: Architectural coherence — DAG axioms and review lens
-Load: [arch-coherence/README.md](arch-coherence/README.md)
+Load: [arch-coherence/AXIOMS.md](arch-coherence/AXIOMS.md)
 
 Topic: Python architectural coherence — language-specific rules and enforcement
 Load: [arch-coherence/PYTHON.md](arch-coherence/PYTHON.md)
@@ -36,7 +36,7 @@ Topic: Django architectural coherence — framework-specific rules
 Load: [arch-coherence/DJANGO.md](arch-coherence/DJANGO.md)
 
 Topic: Engineering review — wrapper around gstack `plan-eng-review`
-Load: [eng-review/README.md](eng-review/README.md)
+Load: [eng-review/WORKFLOW.md](eng-review/WORKFLOW.md)
 
 Topic: Python engineering hygiene — language-specific code-quality rules
 Load: [eng-review/PYTHON.md](eng-review/PYTHON.md)
@@ -45,10 +45,10 @@ Topic: Django engineering hygiene — framework-specific code-quality rules
 Load: [eng-review/DJANGO.md](eng-review/DJANGO.md)
 
 Topic: Documentation coherence — update protocol + review lens
-Load: [doc-coherence/README.md](doc-coherence/README.md)
+Load: [doc-coherence/PROTOCOL.md](doc-coherence/PROTOCOL.md)
 
 Topic: LLM summary — produce a shareable single-file knowledge package for a downstream LLM working without the repo
-Load: [llm-summary/README.md](llm-summary/README.md)
+Load: [llm-summary/SPEC.md](llm-summary/SPEC.md)
 
 Topic: Ownership — tooling enables design and confirms correctness; responsibility stays with the owner
 Load: [shared/OWNERSHIP.md](shared/OWNERSHIP.md)
@@ -74,7 +74,7 @@ Load: [shared/COMMITS.md](shared/COMMITS.md)
 Topic: Commit authoring — procedure for drafting a conventional commit with deterministic version bump from the staged diff
 Load: [commit/SKILL.md](commit/SKILL.md)
 
-Topic: Upgrade — bring an existing repo in line with current racecar with nuance (no clobber); classify each divergence Conform / Declare / Escalate, owner-authorized, idempotent; optional faces uplift
+Topic: Upgrade — bring an existing repo in line with current racecar with nuance (no clobber); classify each divergence Conform / Escalate (intentional-and-right divergence is kept in place with a comment, no override registry), owner-authorized, idempotent; optional faces uplift
 Load: [upgrade/SKILL.md](upgrade/SKILL.md)
 
 Topic: Doctor — verify install, wiring, and load layer by layer (deterministic checks + load-token challenge)
@@ -88,3 +88,7 @@ Load: [expert/README.md](expert/README.md)
 A project applies racecar by referencing this file from its own `CLAUDE.md` or equivalent agent-instruction file (the `./install` pointer block does this automatically; see [README.md](README.md) "Install"). Read this file first to find which component applies. Do not load component files speculatively — read only what the current task requires. If you arrived at a component file directly, return here first.
 
 Enforce mechanically in the consuming repo: run `make arch` / `make check` and the pre-commit hooks. A failing check names a file and line; fix it before proceeding.
+
+## Open work
+
+Current state and the in-flight flight plan live in [TODO.md](TODO.md) (the one index), which resolves to [PLAN.md](PLAN.md).

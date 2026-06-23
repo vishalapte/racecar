@@ -59,7 +59,7 @@ The **item schema** is invariant — it holds wherever an item lives (a concern'
 
 A `## TODO` section that is a resolver (links, no `###` items) is valid — it routes rather than holds. Finished items move (not copy) to a `## Completed` section: per-concern, or centralized in the root `TODO.md`. Completed items need no `Prio` / `Depends` / `Updated`; a trailing ` — YYYY-MM-DD` completion date is the convention.
 
-This federation is the [resolver pattern and one-home-per-rule](../doc-coherence/README.md#mental-models) applied to work tracking. A structured, checked `## TODO` / `## PLAN` section is sanctioned co-located structure, not the freeform scratchpad that [doc-coherence](../doc-coherence/README.md#mental-models) bans.
+This federation is the [resolver pattern and one-home-per-rule](../doc-coherence/PROTOCOL.md#mental-models) applied to work tracking. A structured, checked `## TODO` / `## PLAN` section is sanctioned co-located structure, not the freeform scratchpad that [doc-coherence](../doc-coherence/PROTOCOL.md#mental-models) bans.
 
 ## Grouping
 

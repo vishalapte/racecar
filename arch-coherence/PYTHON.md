@@ -8,13 +8,13 @@ Sections are ordered as a DAG — most independent first, most dependent last.
 
 ## 1. Module Structure
 
-How code is organized into files and packages. Every package has two specialty files — `__init__.py` and `__main__.py` — with opposite roles on the dependency graph. This section owns the Python-specific shape of the direction axiom in [check 2 Direction](README.md#2-direction).
+How code is organized into files and packages. Every package has two specialty files — `__init__.py` and `__main__.py` — with opposite roles on the dependency graph. This section owns the Python-specific shape of the direction axiom in [check 2 Direction](AXIOMS.md#2-direction).
 
-**`__init__.py` — the package's face to the outside.** It declares what the package IS when imported. It is for orchestration and re-exports only; business logic lives in named modules. If `__init__.py` has more than a few re-export lines, move the logic to a named module and re-export. `__init__.py` may import upward — only to the environment layer (see [the environment-layer exception](README.md#environment-layer-exception)). When a child package needs inherited state, its `__init__.py` imports from the environment layer and re-exports into its own namespace.
+**`__init__.py` — the package's face to the outside.** It declares what the package IS when imported. It is for orchestration and re-exports only; business logic lives in named modules. If `__init__.py` has more than a few re-export lines, move the logic to a named module and re-export. `__init__.py` may import upward — only to the environment layer (see [the environment-layer exception](AXIOMS.md#environment-layer-exception)). When a child package needs inherited state, its `__init__.py` imports from the environment layer and re-exports into its own namespace.
 
 **`__main__.py` — the execution entry point.** It imports outward, reaching down into the package's own subtree to dispatch work. Its dependencies go inward-subtree only; never upward to a parent package (env-layer carve-out excepted). For the full `__main__.py` + `commands()` / `subcommands()` / `parser()` pattern that makes this structural, see [CLI.md](CLI.md).
 
-**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](README.md#2-direction)), or read inherited state through their own package's `__init__.py` — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
+**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](AXIOMS.md#2-direction)), or read inherited state through their own package's `__init__.py` — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
 
 **When a library is exposed through more than one face**, these module roles map onto the `lib → api → {cli, mcp, web/django}` tiers: the worker is `lib`, the orchestration policy is `api`, and each face is a wrapper on `api` (the cli face being `__main__`). Where orchestration lives, the per-vertical co-location, the canonical file names (an autodiscovery contract: `lib.py` / `api.py` / `mcp.py` / `__main__.py`), and the single gated `layers` contract plus the advisory detector are in [FACES.md](FACES.md) (one home; not restated here).
 
@@ -22,17 +22,17 @@ How code is organized into files and packages. Every package has two specialty f
 
 How modules connect to each other. Depends on module structure being sound.
 
-**Direction.** Imports flow outward or downward only. This is an architectural rule — see [check 2 Direction](README.md#2-direction) for the axiom and rationale. This section covers the file-level enforcement.
+**Direction.** Imports flow outward or downward only. This is an architectural rule — see [check 2 Direction](AXIOMS.md#2-direction) for the axiom and rationale. This section covers the file-level enforcement.
 
 **Top-level only.** All imports live at the top of the file. No exceptions. Lazy imports — imports inside functions, methods, or conditional blocks — are never acceptable. They are a band-aid over a structural problem. If moving an import to the top of the file breaks something, that breakage is the real bug. Diagnose it: extract shared code into a third module, restructure the dependency graph, or flag it for discussion. Do not bury it inside a function and move on.
 
-**Circular dependencies.** A lazy import is usually a symptom of a circular dependency that was papered over instead of resolved. The fix is structural. See [check 1 Acyclicity](README.md#1-acyclicity-root-axiom).
+**Circular dependencies.** A lazy import is usually a symptom of a circular dependency that was papered over instead of resolved. The fix is structural. See [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom).
 
 ## 3. CLI
 
 The CLI surface (`__main__.py` patterns, `commands()` / `subcommands()` / `parser()` contracts, audit JSON schema, mutex group encoding) is its own document — see [CLI.md](CLI.md). The Python-language piece of the rule lives here:
 
-**No inward references in `__main__.py`.** Entry points are the top layer of the dependency graph; they import downward into their own subtree only. No `from ..` — that would couple children to parents and mask circular dependencies (see [check 1 Acyclicity](README.md#1-acyclicity-root-axiom) and [check 2 Direction](README.md#2-direction)).
+**No inward references in `__main__.py`.** Entry points are the top layer of the dependency graph; they import downward into their own subtree only. No `from ..` — that would couple children to parents and mask circular dependencies (see [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom) and [check 2 Direction](AXIOMS.md#2-direction)).
 
 ## 4. Enforcement
 

@@ -59,7 +59,6 @@ Resolve `<scripts>` as `<project_root>/scripts` once. Use absolute paths for eve
     python <scripts>/check_dj_model_ref_as_string.py     # Django only: skip if no manage.py
     python <scripts>/check_docs.py
     python <scripts>/check_todo_format.py
-    python <scripts>/check_claude_shape.py
     python <scripts>/check_file_placement.py
 
 `<src>` is the source directory from the shape table: `src` for shape `src`, `pypkg/src` for shape `pypkg`/`pypkg+djapp`, `djapp` for nested shape `djapp`. For **standalone** shape `djapp` (`manage.py` at root) there is no single `<src>` directory — enumerate the top-level Python package directories (direct children of `<project_root>` containing `__init__.py` or recognizable Django app/config layout, e.g. `apps/`, `config/`, `common/`) and pass those; never scan `scripts/`, `venv/`, `.venv/`, `migrations/`, or test fixtures.

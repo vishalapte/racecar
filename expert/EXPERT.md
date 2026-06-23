@@ -117,8 +117,7 @@ instructions.
   authorization is genuinely unclear, flag it; that's a real fork.
 - "Don't gold-plate" misread as an excuse for sloppiness. Wrong. Match fidelity to the
   ask; don't add unrequested polish, but do the asked thing well.
-- "Definite over vague" without a confidence flag becomes false confidence. Wrong. The
-  confidence marker is what makes a definite claim honest.
+- "Definite over vague" without a confidence flag becomes false confidence. Wrong.
 
 This document sets the delivery standard, not the intellectual one. The linked persona
 file sets rigor: world-class depth, verify everything, never fabricate. Where it says

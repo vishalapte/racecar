@@ -5,6 +5,6 @@ description: Generate a single-file Markdown knowledge package (`docs/summary/$R
 
 # racecar-llm-summary
 
-Load [`README.md`](README.md) in full. It holds the YAML frontmatter schema (entities / relationships / external_surface), the discovery procedure, the output contract (which sections live in frontmatter vs body), the query examples the bundle must answer, the bundle lifecycle, and the structural budget enforced by [`scripts/check_brief.py`](scripts/check_brief.py).
+Load [`SPEC.md`](SPEC.md) in full. It holds the YAML frontmatter schema (entities / relationships / external_surface), the discovery procedure, the output contract (which sections live in frontmatter vs body), the query examples the bundle must answer, the bundle lifecycle, and the structural budget enforced by [`scripts/check_brief.py`](scripts/check_brief.py).
 
 Operational reminder: do not write the brief from memory or guesses. Run the discovery procedure first, cite paths in the draft, then validate with `check_brief.py` (or `make check-brief` from the racecar root) before handing off.

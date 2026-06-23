@@ -5,7 +5,7 @@ description: Engineering review wrapper — runs a racecar pre-pass (scope hones
 
 # racecar-eng-review
 
-Load [`README.md`](README.md) in full. It holds the three-phase workflow, the two engineering checks, red flags, mental models, decision patterns, feedback format, and invocation prompts.
+Load [`WORKFLOW.md`](WORKFLOW.md) in full. It holds the three-phase workflow, the two engineering checks, red flags, mental models, decision patterns, feedback format, and invocation prompts.
 
 Operational reminder: this is a wrapper, not a standalone lens. The three phases must run in order:
 

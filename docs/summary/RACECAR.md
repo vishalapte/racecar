@@ -1,11 +1,11 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.8.0"
+  version: "0.10.0"
 target:
   repo: racecar
-  sha: 6b2038b
-  date: 2026-06-21
+  sha: 58996ce
+  date: 2026-06-23
 bundle:
   - RACECAR.md
 
@@ -38,7 +38,7 @@ entities:
     case: none
     lifecycle: realized
     purpose: A stdlib-only Python script that catches deterministic drift the model is not asked to think about. Most gate (exit 1 on violation); check_face_orchestration and check_config_drift are ADVISORY (exit 0 by default) — gate defects, surface choices.
-    notes: "Twelve: check_docs, check_subsystem_docs, check_todo_format, check_claude_shape, check_file_placement (doc-coherence); check_upward_imports, check_cli_commands, check_dj_model_ref_as_string, check_packaging (arch-coherence, gating); check_face_orchestration (arch-coherence, advisory faces detector); check_brief (llm-summary). All synced to adopters via sync_scripts/init_project EXCEPT check_config_drift (scripts/, racecar-run-only: diffs an adopter's Makefile/pre-commit against templates/classic, needs the racecar checkout)."
+    notes: "Eleven: check_docs, check_subsystem_docs, check_todo_format, check_file_placement (doc-coherence); check_upward_imports, check_cli_commands, check_dj_model_ref_as_string, check_packaging (arch-coherence, gating); check_face_orchestration (arch-coherence, advisory faces detector); check_brief (llm-summary). All synced to adopters via sync_scripts/init_project EXCEPT check_config_drift (scripts/, racecar-run-only: diffs an adopter's Makefile/pre-commit against templates/classic, needs the racecar checkout)."
 
   - name: Finding
     case: none
@@ -50,7 +50,7 @@ entities:
     case: none
     lifecycle: realized
     purpose: A consumer project's packaging layout — one of `src`, `pypkg`, `pypkg+djapp`, `djapp` — that the packaging canon parameterizes over.
-    notes: "Defined in arch-coherence/PACKAGING.md §Scope; detected mechanically by check_packaging.detect_shape(). All four share the same infrastructure (PEP 621/735 pyproject, make check gate, dev tool set); only the source layout and pyproject location differ. racecar itself is NOT one of these shapes — it is a standards framework, not a deployable package."
+    notes: "Defined in arch-coherence/PACKAGING.md §Scope. Governed by what is on disk — no declared value — and resolved by the same ordered decision in two homes: check_packaging.detect_shape() (Python, for the audit) and templates/classic/racecar.mk (in Make, so the build is self-contained); a coherence test holds them in lockstep. All four share the same infrastructure (PEP 621/735 pyproject, make check gate, dev tool set); only the source layout and pyproject location differ. racecar itself is NOT one of these shapes — it is a standards framework, not a deployable package."
 
   - name: PointerBlock
     case: on_disk_managed
@@ -80,7 +80,7 @@ entities:
     case: on_disk_managed
     lifecycle: realized
     purpose: A plain `major.minor.patch` text file at the repo root that tracks the framework's release line.
-    notes: "Manually edited per shared/COMMITS.md; current 0.7.0. The packaging canon deprecates VERSION only where a `[project].version` exists to replace it; racecar, having no `[project]` table, is exempt and keeps VERSION as its legitimate version home (commit 745cef1)."
+    notes: "Manually edited per shared/COMMITS.md; current 0.10.0. The packaging canon deprecates VERSION only where a `[project].version` exists to replace it; racecar, having no `[project]` table, is exempt and keeps VERSION as its legitimate version home (commit 745cef1)."
 
   - name: SkillManifest
     case: content_tree
@@ -105,7 +105,7 @@ entities:
     path_pattern: "templates/classic/{library-pyproject.toml, djapp-pyproject.toml, Makefile, pre-commit-config.yaml, gitignore, README.md}"
     count: 6
     validator: "arch-coherence/scripts/check_packaging.py (in the consumer project)"
-    notes: "Single canonical set (black + isort + pylint; djhtml added to the Django dev group as the canonical template-tag formatter, PACKAGING.md §6). The earlier ruff variant was dropped (commit 9ad5c27) under the PACKAGING.md governance rule excluding VC-backed tooling. The Makefile is parameterized over the four ProjectShapes via SRC/PKG/DJAPP/LIB_PYPROJECT/DJAPP_PYPROJECT; its fmt/fmt-check targets run djhtml gated on $(DJAPP)."
+    notes: "Single canonical set (black + isort + pylint). The Django dev group adds two canon tools (PACKAGING.md §6): djhtml (template-tag formatter) and pylint-django (the pylint plugin racecar.mk's lint loads on the djapp). There is no ruff variant (commit 9ad5c27), excluded under the PACKAGING.md governance rule against VC-backed tooling. racecar.mk (identical in every repo, the build half of the Makefile fold) detects the shape from the layout at make-time and sets SRC/PKG/DJAPP/LIB_PYPROJECT/DJAPP_PYPROJECT; its fmt/fmt-check run djhtml and its lint loads --load-plugins=pylint_django, both gated on $(DJAPP)."
 
 relationships:
   - from: Router
@@ -198,7 +198,7 @@ external_surface:
     - verb: /racecar-upgrade
       module: upgrade/SKILL.md
       args: freeform prompt (the repo to upgrade)
-      behavior: "Detect divergence from current racecar mechanically, classify each Conform/Declare/Escalate (burden of proof on Conform), owner-authorized, idempotent, no clobber. Optional lib/api/faces uplift from existing structure."
+      behavior: "Detect divergence from current racecar mechanically, classify each Conform/Escalate (burden of proof on Conform; an intentional-and-right divergence is kept in place with a comment, no override registry), owner-authorized, idempotent, no clobber. Optional lib/api/faces uplift from existing structure."
     - verb: /racecar-expert-mode
       module: expert/SKILL.md
       args: none
@@ -255,7 +255,7 @@ external_surface:
     - verb: make obsidian
       module: Makefile
       args: none
-      behavior: "List the two obsidian sync modes (obsidian-data / obsidian-docs); syncs nothing itself. (racecar's own Makefile only — the consumer template Makefile dropped these targets.)"
+      behavior: "List the two obsidian sync modes (obsidian-data / obsidian-docs); syncs nothing itself. (racecar's own Makefile only; the consumer template Makefile has no obsidian targets.)"
     - verb: make obsidian-data
       module: Makefile
       args: "vars: OBSIDIAN_DEST, DATA_DIR, OBSIDIAN_SLUG"
@@ -289,11 +289,11 @@ external_surface:
     - name: check_packaging
       module: arch-coherence/scripts/check_packaging.py
       signature: "python3 check_packaging.py [--root <path>] [--strict]"
-      behavior: "Detect the ProjectShape via detect_shape(); validate the library pyproject ([project] PEP 621 keys, [dependency-groups].dev against the canon tool set, [build-system], no [tool.uv|ruff|poetry|pdm] blocks), the djapp pyproject, the Makefile target surface, .gitignore, .pre-commit-config.yaml, requirements.txt, and CHANGELOG. Two severities (Blocker / Finding); --strict promotes Findings to Blockers. Exit 0 if no Blockers / 1. Pure stdlib. Exports detect_shape(), imported by check_upward_imports."
+      behavior: "Detect the ProjectShape via detect_shape(); validate the library pyproject ([project] PEP 621 keys, [dependency-groups].dev against the canon tool set, [build-system], no [tool.uv|ruff|poetry|pdm] blocks), the djapp pyproject, the Makefile target surface, .gitignore, .pre-commit-config.yaml, requirements.txt, and CHANGELOG. Two severities (Blocker / Finding); --strict promotes Findings to Blockers. Exit 0 if no Blockers / 1. Pure stdlib. Exports detect_shape(), imported by check_upward_imports. Structured as a thin runnable entry (check_packaging.py) re-exporting a sibling check_packaging_rules/ package of one audit per module, composed by a plain run_all (no rule registry); the package travels with the entry to adopters via sync's delivered_files."
     - name: check_dj_model_ref_as_string
       module: arch-coherence/scripts/check_dj_model_ref_as_string.py
       signature: "python3 check_dj_model_ref_as_string.py"
-      behavior: "AST-walk every .py under each [tool.importlinter].root_packages dir; flag ORM string-target FKs/O2O/M2M; classify LIVE vs NOOP against INSTALLED_APPS; annotate UPWARD DAG cross by layer."
+      behavior: "Read root_packages from the library pyproject (via detect_shape); glob each named package from the tree (found wherever it lives, not assumed at root); AST-walk every .py under it; flag ORM string-target FKs/O2O/M2M; classify LIVE vs NOOP against INSTALLED_APPS; annotate UPWARD DAG cross by layer."
 ---
 
 # Racecar — Knowledge Package
@@ -324,7 +324,7 @@ User-facing primitives:
 | Module | Purpose |
 | --- | --- |
 | `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics (`PYTHON.md`, `DJANGO.md`) + the CLI contract (`CLI.md`) + the packaging canon (`PACKAGING.md`) + the faces doctrine (`FACES.md`: `lib → api → faces`, a face is a wrapper on `api`, named-file autodiscovery convention, the single gated `layers` contract, advisory detector) + five enforcement scripts (`check_upward_imports`, `check_cli_commands`, `check_dj_model_ref_as_string`, `check_packaging` gating; `check_face_orchestration` advisory), each with its own test module. |
-| `doc-coherence/` | Documentation-coherence lens: update protocol + review lens + two mechanical pre-passes — `check_docs` (link / anchor / §N / vocabulary drift) and `check_subsystem_docs` (every import-linter subsystem owns README + CLAUDE). |
+| `doc-coherence/` | Documentation-coherence lens: update protocol + review lens + four mechanical checks — `check_docs` (link / anchor / §N / vocabulary drift), `check_subsystem_docs` (every import-linter subsystem owns README + CLAUDE), `check_todo_format` (the TODO/PLAN schema), and `check_file_placement` (reference-driven: a doc unreachable from the README/CLAUDE/SKILL resolver seeds, and not under `docs/`, is an orphan). |
 | `eng-review/` | Engineering-review wrapper: racecar pre-pass → gstack `/plan-eng-review` → racecar post-pass. |
 | `llm-summary/` | This generator's spec + the `check_brief.py` validator. |
 | `expert/` | Optional output-mode overlay: terse, high-density expert delivery. |
@@ -442,7 +442,8 @@ Cross-module contracts that are not user-callable:
 - **`[tool.racecar.subsystem-docs]`** → produced by consumer; consumed by `check_subsystem_docs.py`. Keys `loc_threshold` (int, default 1000) and `exclude` (list, added to defaults).
 - **`[tool.pylint.MASTER].ignore-paths`** → produced by consumer; consumed by `check_docs.py`. `list[regex]`. Absent → empty tuple.
 - **Pointer-block markers / Claude Code hook JSON** → as before: byte-exact BEGIN/END partition of `~/.claude/CLAUDE.md` by `sync_claude_md.py` / `expert_mode.py`; hook stdin `{"tool_input": {...}, "cwd": ...}`, PreToolUse may emit `permissionDecision: allow`. Both bash hooks always exit 0 — racecar never denies, only auto-allows or falls through.
-- **`racecar-llm-summary` output contract** → produced by `llm-summary/README.md`; consumed by this brief, downstream LLMs, and `check_brief.py` (which now also enforces spine/body SHA agreement). Schema drift → `check_brief.py` exit 1.
+- **`racecar-llm-summary` output contract** → produced by `llm-summary/README.md`; consumed by this brief, downstream LLMs, and `check_brief.py` (which also enforces spine/body SHA agreement). Schema drift → `check_brief.py` exit 1.
+- **Delivered-file manifest** → `scripts/racecar-manifest.txt`, the single home for the list of files racecar ships to an adopter (entry scripts plus each checker's sibling `_rules/` package modules, Django-only checks tagged). Generated from `sync_scripts.delivered_files` via `--write-manifest`, pinned to the filesystem by a test. Produced by `sync_scripts`; consumed by `sync_remote` (the no-clone GitHub path, which fetches it rather than carrying its own list) and read by the staleness hook. The convention: a checker's `<stem>_rules/` package travels with its entry; nothing per-file is listed twice.
 
 ### §2.6 Configuration
 
@@ -453,8 +454,8 @@ Racecar has no production / dev split — there is no deployed instance. Every k
 - `OBSIDIAN_SYNC_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile. CLI flag `--dest` > env var > `dest_root` in `~/.config/obsidian-sync.toml`. No default.
 - `--claude-md` / `--target`, `--settings`, `--dry-run` — `sync_claude_md.py` CLI flags. CLI flag > env var > default.
 - `VENV` — `Makefile` auto-detect (`.venv`, `venv`, `../venv`); first that exists is prepended to `PATH`.
-- **Consumer-template Makefile shape variables** (`templates/classic/Makefile`): `SRC` (source root), `PKG` (audited package path), `DJAPP` (Django app dir, empty when not Django), `LIB_PYPROJECT` (library pyproject path), `DJAPP_PYPROJECT` (djapp pyproject path, Shape `pypkg+djapp` only). Set together per the chosen ProjectShape; `PYTEST_ARGS` appends to `make test`.
-- `OBSIDIAN_DEST` / `DATA_DIR` / `OBSIDIAN_SLUG` — racecar's **own** Makefile variables (the consumer template dropped the obsidian targets); defaults `$(HOME)/Obsidian` / `.data`, slug `<org>-<repo>` from `git remote get-url origin`.
+- **Shape variables in `templates/classic/racecar.mk`**: `SRC` (source root), `PKG` (audited package path), `DJAPP` (Django app dir, empty when not Django), `LIB_PYPROJECT` (library pyproject path), `DJAPP_PYPROJECT` (djapp pyproject path, Shape `pypkg+djapp` only). Set by `racecar.mk`'s make-time shape detection (governed by the layout, not chosen), each with `?=` so the owned `Makefile` can override with an earlier `:=`; `PYTEST_ARGS` appends to `make test`.
+- `OBSIDIAN_DEST` / `DATA_DIR` / `OBSIDIAN_SLUG` — racecar's **own** Makefile variables (not in the consumer template); defaults `$(HOME)/Obsidian` / `.data`, slug `<org>-<repo>` from `git remote get-url origin`.
 - `[tool.importlinter].root_package(s)` / `.contracts`, `[tool.racecar.subsystem-docs]`, `[tool.pylint.MASTER].ignore-paths` — consumer-project TOML; see §2.5.
 
 No secrets. No environment-variant rows because there is no environment split.
@@ -498,24 +499,31 @@ Plugin / extension surfaces:
 
 - **No CI gate; local enforcement only.** `shared/OWNERSHIP.md`: enforcement is `pre-commit` / `lint-imports` / `make check`, not required-status-check workflows. Tooling confirms; the owner ratifies.
 - **One packaging opinion, four shapes.** `arch-coherence/PACKAGING.md` (commit `39fb900`). PEP 621/735 pyproject as the sole config source, `Makefile` contract, `.venv` discipline, optional `requirements.txt` via `pip-compile`, the black + isort + pylint dev set. Parameterized over `src` / `pypkg` / `pypkg+djapp` / `djapp`; the canon explicitly does not accommodate uv-shops, Bazel, or other layouts.
-- **PSF/PyPA + community OSS governance — no VC-backed tooling.** PACKAGING.md §1–2. `uv`, `ruff`, `poetry`, `pdm` are rejected on governance/lock-in grounds, not technical ones. This is why the ruff template variant was dropped (commit `9ad5c27`) and `check_packaging` blocks `[tool.uv|ruff|poetry|pdm]`.
-- **VERSION-deprecation carve-out for non-package repos.** Commit `745cef1`. The canon says `[project].version` is the sole version source — but only where a `[project]` table exists. A docs/scripts/standards-framework repo (racecar itself) has no `[project]`, so VERSION is its legitimate version home and `check_packaging` no longer misfires on it.
+- **PSF/PyPA + community OSS governance; no VC-backed tooling.** PACKAGING.md §1–2. `uv`, `ruff`, `poetry`, `pdm` are excluded on governance/lock-in grounds, not technical ones (the reason there is no ruff template variant, commit `9ad5c27`); `check_packaging` blocks `[tool.uv|ruff|poetry|pdm]`.
+- **VERSION is deprecated only where `[project].version` can replace it.** Commit `745cef1`. The canon makes `[project].version` the sole version source, but only where a `[project]` table exists. A repo without one (racecar, a docs/scripts/standards framework) keeps `VERSION` as its legitimate version home, and `check_packaging` does not flag it.
 - **The §3 CLI surface is a three-contract / three-pattern model.** `arch-coherence/CLI.md` (commit `3bb2ec9`). `commands()`/`subcommands()`/`parser()` are pure data functions; `check_cli_commands.py --json` emits one enriched tree that every consumer (SessionStart hook, doc gen, CI) summarizes — single source of CLI truth.
 - **Parallelize the CLI audit.** Commit `98f7738`. Cold `python -m` probes dominated wall time; a structural walk drops `_Probe` sentinels that a thread pool resolves, preserving per-node ordering (so exact-equality tests pass). `__main__` import errors are captured as structural violations rather than killing the audit.
 - **Force-load the baseline every SessionStart.** Commit `ff21b54`. The pointer block is only an instruction; inlining the machine baseline (`CLAUDE.md` + `shared/*.md`) as `additionalContext` makes it present, not merely routable. README is the human storefront and is not loaded; lenses stay on-demand by design.
 - **Decision log as a tiered hook pair.** Commit `86aee48`. A deterministic `PreCompact` marker (spine) + a `SessionStart(compact)` reconciliation prompt (judgment). Opt-in per project via `.claude/HISTORY.md`.
 - **Completion-claim guardrails.** `shared/OPERATIONAL.md` rules 7–12 (commit `9ced60c`): never claim done without the production-path command + exit code; agent-workaround keywords are stop signals; cross-agent equal numbers must be checked; doc invariants need test code; tests routing around production are bugs; banned completion vocabulary.
 - **Subsystem-docs presence check.** Commit `4b67ef5`. Every import-linter subsystem must own a README (developer) + CLAUDE (agent); "major" is structural (a subdir) or size (`loc_threshold`).
-- **YAML frontmatter as the brief's relational store; class-level entities only.** `llm-summary/README.md`. A downstream LLM queries frontmatter deterministically; field tables blew the line budget and were rarely the interesting query. `check_brief.py` now also enforces spine/body SHA agreement (commit `938d27c`).
+- **YAML frontmatter as the brief's relational store; class-level entities only.** `llm-summary/README.md`. A downstream LLM queries frontmatter deterministically; field tables blow the line budget and are rarely the interesting query. `check_brief.py` enforces spine/body SHA agreement (commit `938d27c`).
 - **Drift doctrine.** `shared/DRIFT.md`. Defense must be structural or automatic; resolve drift at the largest frame that explains the symptom; "duplication is drift" is Tier 1.
-- **Faces as named convention, not a wall.** `arch-coherence/FACES.md`. One library exposed through N thin faces (`lib → api → {cli, mcp, web/django}`); a **face is a wrapper on `api`**. The first pass made face→worker routing a hard `forbidden` import-linter contract; that was racecar breaking its own OWNERSHIP ("tooling confirms, the owner authorizes") and DRIFT ("detect and surface") doctrine. Recast (built on the `lib → api → faces` proving ground): **gate genuine defects** (acyclicity + direction stay one gated `layers` contract), **surface choices** (face reaching past `api` is advisory, not walled). The canonical file names (`lib.py`/`api.py`/`mcp.py`/`__main__.py`) are an **autodiscovery contract** — the Django `admin.py` model, fixed because the framework looks them up — not dogma. Role identification is declare-then-verify in three tiers (canonical name → `[tool.racecar.faces]` manifest → structural cut-vertex inference), LLM-last; non-classifiability is itself the drift finding.
-- **Advisory faces detector + scaffolder replace the wall.** `check_face_orchestration.py` is advisory (exit 0; `--strict` opts in) and identifies each vertical's `lib`/`api`/faces, flagging non-classifiable verticals and orchestration restated across faces. `scripts/init_project.py --vertical` scaffolds the canonical vertical pre-wired `lib → api → cli` (the `startapp` equivalent): the good shape is the default you receive (FACES.md §10). Scaffold + advisory detector + docs-that-teach is how convention spreads where enforcement does not.
+- **Faces are a named convention, not a wall.** `arch-coherence/FACES.md`. One library exposed through N thin faces (`lib → api → {cli, mcp, web/django}`); a **face is a wrapper on `api`**. Face→worker routing is advisory, not a hard `forbidden` import-linter contract: walling it would break OWNERSHIP ("tooling confirms, the owner authorizes") and DRIFT ("detect and surface"). The split is **gate genuine defects** (acyclicity + direction are one gated `layers` contract) and **surface choices** (a face reaching past `api` is a finding). The canonical file names (`lib.py`/`api.py`/`mcp.py`/`__main__.py`) are an **autodiscovery contract** (the Django `admin.py` model, fixed because the framework looks them up), not dogma. Role identification is declare-then-verify in three tiers (canonical name → `[tool.racecar.faces]` manifest → structural cut-vertex inference), LLM-last; non-classifiability is itself the drift finding.
+- **An advisory detector plus a scaffolder carry the faces convention.** `check_face_orchestration.py` is advisory (exit 0; `--strict` opts in): it identifies each vertical's `lib`/`api`/faces and flags non-classifiable verticals and orchestration restated across faces. `scripts/init_project.py --vertical` scaffolds the canonical `lib → api → cli` vertical (the `startapp` equivalent), so the good shape is the default you receive (FACES.md §10). Scaffold plus advisory detector plus docs-that-teach is how a convention spreads where enforcement does not.
 - **djhtml is the canonical Django-template formatter.** `arch-coherence/PACKAGING.md §6`. Idempotent by construction (it only reindents `{% %}` tags), permissively licensed, community OSS — chosen over the heavier, GPL, empirically-idempotent `djlint`. Lives in the Django dev group; `make fmt`/`fmt-check` run it gated on `$(DJAPP)`; `check_packaging` requires it in the django group for any repo with a `manage.py` (the propagation lever to existing Django adopters).
+- **pylint-django is the canonical Django lint plugin.** `PACKAGING.md §6`, the second `CANON_DJANGO_TOOLS` entry. It teaches pylint the ORM, so `Model.objects`, the model metaclass, and `on_delete` stop raising false positives. `racecar.mk`'s `lint` loads it on the djapp only (`--load-plugins=pylint_django`), the library tree plain (the library is not Django and may not import it); re-syncing `racecar.mk` propagates it, with no per-repo `[tool.pylint].load-plugins` edit. Motivated by a Django adopter whose djapp lint was red against the plain library config.
 - **README is for humans, CLAUDE.md for machines.** README is the readable storefront and is NOT force-loaded into agent context; `CLAUDE.md` is the machine baseline + resolver the SessionStart hook inlines, and the consuming-project pointer references. Modeled on gstack's README/AGENTS/CLAUDE split.
-- **Brief home is `docs/summary/<REPO>.md`.** Dropped the redundant `docs/<repo>/` segment (the repo name is already the host repo) and the Sphinx/MkDocs collision heuristic (an implicit detector racecar otherwise avoids). One fixed location; user override for the rare exception.
-- **Nuanced upgrade, not naive clobber.** The `racecar-upgrade` skill (`upgrade/README.md`) never assumes the existing repo is wrong. Every divergence from current racecar gets one of three verdicts: Conform (drift; bring to base), Declare (intentional; preserve and record in `[tool.racecar.overrides]`), Escalate (racecar's default is wrong; change the standard, repo untouched). Burden of proof on Conform; owner-authorized; idempotent. Mechanical floor: `scripts/check_config_drift.py` (portable stdlib Python — deliberately NOT a bash `declare -A` map, which breaks on macOS bash 3.2 — normalizing the per-project shape variables so they are not reported as drift).
-- **Adopter self-sufficiency for synced checks.** `check_subsystem_docs` and `check_brief` were racecar-only, so an adopter could not validate artifacts (its own subsystem docs, its own `docs/summary/` brief) without the racecar checkout. Both are now synced; `check_brief` needs `pyyaml`, which was promoted to a canonical dev tool (PACKAGING.md §6) to make the adopter's gate self-contained. The template `docs:` target runs `check_brief` guarded so a repo with no brief pays only the inert dependency.
+- **Brief home is `docs/summary/<REPO>.md`.** One fixed location, no repo-name path segment (the filename already carries the system identity) and no Sphinx/MkDocs collision heuristic (an implicit detector racecar avoids). User override for the rare exception.
+- **Nuanced upgrade, not naive clobber.** The `racecar-upgrade` skill (`upgrade/README.md`) never assumes the existing repo is wrong. Every divergence from current racecar gets a verdict: Conform (drift; bring to base) or Escalate (racecar's default is wrong; change the standard, repo untouched). An intentional-and-right divergence is simply kept with an in-place comment — there is no `[tool.racecar.overrides]` registry (a parallel exception list is a second home for facts the code already states). Burden of proof on Conform; owner-authorized; idempotent. Mechanical floor: `scripts/check_config_drift.py` (portable stdlib Python — deliberately NOT a bash `declare -A` map, which breaks on macOS bash 3.2 — diffing `.pre-commit-config.yaml` against base; Makefile drift is gone as a category under the fold).
+- **Makefile fold (owned root + canonical `racecar.mk`).** The build is split: a thin owned `Makefile` (project targets + `include racecar.mk`, never rewritten by racecar) and a canonical `racecar.mk` that is **identical in every repo** (every standard target + the shape logic). `racecar.mk` detects the project shape from what is on disk at make-time (the same ordered decision `check_packaging.detect_shape` makes, written in Make so the build is self-contained) and sets `SRC`/`PKG`/`DJAPP`/`LIB_PYPROJECT` with `?=`, falling back to stock for an unrecognized layout. `make sync` copies it verbatim. Pre-commit hooks that need a shape-computed variable read it through a `print-%` target (`make -s print-LIB_PYPROJECT`), since only Make can resolve it. Nothing per-repo is stored (no shape value, no stamp), so nothing can drift or go stale; restructure the repo and the next `make` reads the new layout. Shape is governed by what is, not by a declared entry. The detection rule lives in exactly two homes (Make and Python `detect_shape`) on purpose, a foundation must know its own shape with only `make` present, and a coherence test holds them in lockstep (PACKAGING.md §7, "Scope").
+- **Synced checks are adopter-self-sufficient.** `check_subsystem_docs` and `check_brief` sync to adopters, so an adopter validates its own subsystem docs and its own `docs/summary/` brief without the racecar checkout. `check_brief` needs `pyyaml`, a canonical dev tool (PACKAGING.md §6), so the adopter's gate is self-contained; the template `docs:` target runs `check_brief` guarded so a repo with no brief pays only the inert dependency.
 - **Standard README shape as a received template, not a gate.** Human READMEs follow who-what -> Getting Started -> Using -> when/where/why (`templates/classic/README.md`, scaffolded by `init_project`). No checker enforces the section names: forcing headings would be theater. The structure is the easy default you receive, per the FACES.md "make the right thing easy" principle.
+- **A heavyweight checker is a thin entry over a rule package only where it earns it.** `check_packaging` (a checklist of ~12 independent audits) is a thin `check_packaging.py` entry over a `check_packaging_rules/` package, one audit per module, composed by a plain `run_all` with no registry. `check_cli_commands` (one cohesive recursive CLI-tree algorithm) stays a single file with one honest `too-many-lines` disable: the same package split would scatter a single algorithm. The rule: decompose a checklist, not a detector; do not split a file to silence a configurable line-count lint.
+- **Doc placement is reference-driven; no fixed-taxonomy doc gate.** `check_file_placement` flags a doc only when it is unreachable from the README/CLAUDE/SKILL resolver seeds. There is no gate on a fixed CLAUDE.md section shape: a received doc shape is a default to propose, not to gate, the same reason the faces convention is not walled.
+- **The delivered-file list is single-homed in a manifest.** `sync_remote` (the no-clone path) and `sync_scripts` both read one generated, test-pinned `scripts/racecar-manifest.txt`, the single home for the list of files racecar ships to an adopter; a checker's `_rules/` package travels with its entry. Removed canonical scripts are cleaned from adopters on sync.
+- **A shared abstraction waits for the second real consumer.** A structural role-map module shared across checkers earns its place only once a second consumer exists; built ahead of need and used by a single detector, it is dead weight. The shared-context abstraction belongs to the moment the second consumer is real, not the first anticipated one.
+- **The framework self-lints.** racecar's own scripts pass pylint at 10/10 via a `make lint` step in `make check`; the framework holds itself to the bar it sets for adopters.
 
 ### §2.10 Operational
 
@@ -524,7 +532,7 @@ Plugin / extension surfaces:
 - **Move the checkout.** Re-run `./install`; the PostToolUse Read hook also self-heals the pointer block and the seven hook absolute paths whenever any `racecar/README.md` is read.
 - **System dependencies.** `python3 ≥ 3.11` (`tomllib`). Optional `jq` for the Read hook (sed fallback); required `jq` for the Bash hook. `make` for the human surface. Consumer projects additionally need `pip ≥ 25.1` (PEP 735) — a template requirement, not racecar's own.
 - **Dev dependencies.** `pip install --group dev` (via `make install-deps`) pulls `black`/`isort`/`pylint`/`pytest`/`pyyaml>=6.0`. Only `pytest` and `pyyaml` exercise racecar's own surface; the formatters/linter are consumer-side defaults.
-- **Self-test.** Owner-driven, no `.github/workflows/`. `make check` = `check-docs` + `check-subsystem-docs` + `pytest` (eight modules) + `check-brief`. racecar itself is **not** one of the four ProjectShapes, so `check_packaging` is not run against racecar's own tree.
+- **Self-test.** Owner-driven, no `.github/workflows/`. `make check` = `check-docs` + `check-subsystem-docs` + `lint` (pylint over racecar's own scripts, at 10/10) + `pytest` (fifteen modules) + `check-brief`. racecar itself is **not** one of the four ProjectShapes, so `check_packaging` is not run against racecar's own tree.
 - **Healthcheck / observability.** None — no service. Hook scripts never block; `sync_claude_md.py` prints `created` / `updated` / `already up to date`.
 - **Uninstall.** Not provided for the main install (symlinks + pointer survive a `git rm`). `make expert-uninstall` reverses the overlay.
 - **Tests.** Fifteen modules across `arch-coherence/tests`, `doc-coherence/tests`, `llm-summary/tests`, and `scripts/tests` — covering every check script plus `check_face_orchestration`, `init_project`, `doctor`, `sync_claude_md`, and `session_check_sync`. Still untested: `expert_mode.py`, `sync_md_to_obsidian.py`, the two bash hooks, four of the five Python hooks (`session_check_sync.py` is the tested one), and `./install`.
@@ -574,13 +582,13 @@ N/A — no deployed instance. The install surface is `./install`, `make`, and th
 - §2.2 (Entities): the `ProjectShape` entry treats the four shapes (`src` / `pypkg` / `pypkg+djapp` / `djapp`) as a closed set; if PACKAGING.md grows a fifth shape this brief will lag. Verify against `arch-coherence/PACKAGING.md §Scope` and the `detect_shape` branches in `arch-coherence/scripts/check_packaging.py`.
 - §2.1 / §2.4.3 (SessionStart hooks): the claim that both SessionStart loaders fire on exactly the four matchers (startup / resume / clear / compact) is taken from the `upsert_hook` calls in `scripts/sync_claude_md.py`; verify against the `SESSION_*` matcher constants and the `sync_settings` body there.
 - §2.5 (Internal contracts): the `subcommands()` / `parser()` "required on Pattern 2/3, forbidden on Pattern 1" rule is transcribed from `arch-coherence/CLI.md §"The three contracts"`; if `_classify` in `check_cli_commands.py` enforces it differently, the script is authoritative. Verify against the current `_classify` / contract-checking code.
-- §2.10 (Operational): the test-module count and the `make check` chain are read from the root `Makefile`; the working tree is ahead of committed `6b2038b` (this session added the faces recast, djhtml, docs/summary, and the README/CLAUDE split uncommitted). Verify with `make test` and `grep -n 'check:' Makefile`.
+- §2.10 / frontmatter (snapshot point): this brief describes the 0.10.0 working tree, which is uncommitted on top of `58996ce` (the frontmatter `sha`, the 0.9.0 base the 0.10.0 work sits on). The 0.10.0 release commit does not exist yet, so the test-module count and `make check` chain are read from the working tree, not a commit. Verify with `make test` and `grep -n 'check:' Makefile`; re-stamp `target.sha` to the release commit after it lands if precision matters.
 - §2.9 / §2.2 (Faces): `check_face_orchestration.py`'s Tier-3 structural inference (api = cut vertex between faces and lib) is summarized from the rebuilt script; the exact articulation-point algorithm and the single-face `api==lib` collapse edge are authoritative in `arch-coherence/scripts/check_face_orchestration.py` (`_cut_vertices` / `_infer_api`). Verify there and in `arch-coherence/FACES.md §5`.
 
 **Not in this brief**
 
 - Owner identity beyond `shared/PERSONA.md`'s persona JSON — unknown — ask user.
 - Adoption — which consumer repos use the templates, which ProjectShape each picked — unknown — ask user.
-- Roadmap intent: no `TODO.md` despite `shared/TODO_FORMAT.md` prescribing one — unknown — ask user whether work is tracked elsewhere.
+- Roadmap beyond the in-flight `PLAN.md` / `TODO.md` (the craft-refactor flight plan now tracked per `shared/TODO_FORMAT.md`) — longer-term direction — unknown — ask user.
 - Purpose and intended invocation of `scripts/sync_md_to_obsidian.py` (not wired into the Makefile; not referenced from any README) — unknown — ask user.
 - Whether `gstack` is publicly available or owner-private — unknown — ask user.
