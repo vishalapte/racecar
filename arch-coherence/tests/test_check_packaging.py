@@ -17,7 +17,92 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_packaging.py"
+
+sys.path.insert(0, str(SCRIPT.parent))
+import check_packaging  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import init_project  # noqa: E402
+
+
+@pytest.mark.parametrize("shape", ["src", "pypkg", "pypkg+djapp", "djapp"])
+def test_real_init_scaffold_passes_packaging_gate(shape: str, tmp_path: Path) -> None:
+    """Realism gate: a project scaffolded by init_project — the real producer of the
+    templates this checker validates — must pass the packaging gate (0 blockers).
+
+    The CANON_* fixtures below are hand-written mirrors of templates/classic/,
+    maintained separately from the real templates. That decoupling is exactly the
+    makefile-fold failure mode: a fixture that drifts from the producer it stands in
+    for. This couples the checker to the actual scaffold, so a template that drifts
+    out of canon fails here, in CI, instead of silently in an adopter's repo. Advisory
+    findings are allowed; only blockers fail the gate.
+    """
+    init_project.scaffold(
+        shape=shape,
+        name="potato",
+        package="potato",
+        dest=tmp_path,
+        version="0.1.0",
+        description="d",
+        author="a",
+        email="a@b.c",
+    )
+    result = _run(tmp_path)
+    assert result.returncode == 0, result.stdout
+
+
+def _layout(tmp_path: Path, *rel: str) -> Path:
+    for r in rel:
+        p = tmp_path / r
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.touch()
+    return tmp_path
+
+
+def test_detect_shape_governed_by_what_is_on_disk(tmp_path: Path) -> None:
+    """Shape is a pure function of the layout (PACKAGING.md §"Scope"), no declared
+    value. The same decision racecar.mk makes in Make; a coherence test in
+    scripts/tests/test_sync_scripts.py holds the two homes in lockstep."""
+    assert (
+        check_packaging.detect_shape(_layout(tmp_path, "pyproject.toml"))[0].name
+        == "src"
+    )
+    assert (
+        check_packaging.detect_shape(
+            _layout(tmp_path / "a", "pypkg/src/pyproject.toml")
+        )[0].name
+        == "pypkg"
+    )
+    assert (
+        check_packaging.detect_shape(
+            _layout(tmp_path / "b", "pypkg/src/pyproject.toml", "djapp/manage.py")
+        )[0].name
+        == "pypkg+djapp"
+    )
+    assert (
+        check_packaging.detect_shape(
+            _layout(tmp_path / "c", "pyproject.toml", "djapp/manage.py")
+        )[0].name
+        == "djapp"
+    )
+    # No recognizable layout -> the "unknown" sentinel (racecar.mk's "stock").
+    assert check_packaging.detect_shape(tmp_path / "empty")[0].name == "unknown"
+
+
+def test_detect_shape_locates_manage_py_per_shape(tmp_path: Path) -> None:
+    """detect_shape exposes manage_py (the Django marker location) so checkers stop
+    re-probing it: djapp/manage.py for pypkg+djapp, root for standalone djapp, None for
+    non-Django. check_dj_model_ref_as_string reads this instead of a root-only probe
+    that left it silently dead on the pypkg+djapp shape."""
+    pd = _layout(tmp_path / "pd", "pypkg/src/pyproject.toml", "djapp/manage.py")
+    assert check_packaging.detect_shape(pd)[0].manage_py == pd / "djapp" / "manage.py"
+    dj = _layout(tmp_path / "dj", "pyproject.toml", "manage.py")
+    assert check_packaging.detect_shape(dj)[0].manage_py == dj / "manage.py"
+    src = _layout(tmp_path / "src", "pyproject.toml")
+    assert check_packaging.detect_shape(src)[0].manage_py is None
 
 
 # ---------------------------------------------------------------------------
@@ -92,18 +177,21 @@ root_package = "myapp"
 # [tool.importlinter] coverage for the djapp source tree. profile="black"
 # alone is a false green for this shape (isort cannot auto-detect first-party
 # packages over the second djapp tree); see PACKAGING.md §7.
-PYPKG_DJAPP_LIBRARY_PYPROJECT = CANON_LIBRARY_PYPROJECT.replace(
-    '    "pyyaml>=6.0",\n]\n',
-    '    "pyyaml>=6.0",\n]\n'
-    'django = [\n    "djhtml",\n]\n',
-).replace(
-    '[tool.isort]\nprofile = "black"\n',
-    '[tool.isort]\nprofile = "black"\n'
-    'known_first_party = ["myapp", "apps", "core", "project"]\n'
-    'src_paths = ["pypkg/src", "djapp"]\n',
-).replace(
-    '[tool.importlinter]\nroot_package = "myapp"\n',
-    '[tool.importlinter]\nroot_packages = ["myapp", "apps", "core", "project"]\n',
+PYPKG_DJAPP_LIBRARY_PYPROJECT = (
+    CANON_LIBRARY_PYPROJECT.replace(
+        '    "pyyaml>=6.0",\n]\n',
+        '    "pyyaml>=6.0",\n]\n' 'django = [\n    "djhtml",\n    "pylint-django>=2.5",\n]\n',
+    )
+    .replace(
+        '[tool.isort]\nprofile = "black"\n',
+        '[tool.isort]\nprofile = "black"\n'
+        'known_first_party = ["myapp", "apps", "core", "project"]\n'
+        'src_paths = ["pypkg/src", "djapp"]\n',
+    )
+    .replace(
+        '[tool.importlinter]\nroot_package = "myapp"\n',
+        '[tool.importlinter]\nroot_packages = ["myapp", "apps", "core", "project"]\n',
+    )
 )
 
 CANON_DJAPP_PYPROJECT = """\
@@ -166,7 +254,6 @@ arch: ## a
 docs: ## d
 \t$(PYTHON) scripts/check_docs.py
 \t$(PYTHON) scripts/check_todo_format.py
-\t$(PYTHON) scripts/check_claude_shape.py
 \t$(PYTHON) scripts/check_file_placement.py
 
 clean: ## c
@@ -178,6 +265,16 @@ distclean: ## d
 system-deps: ## s
 \tbash scripts/install_system_deps.sh
 """
+
+# Under the Makefile fold (PACKAGING.md §7) the canonical targets live in racecar.mk
+# (identical in every repo; it self-detects the shape from the layout). CANON_MAKEFILE
+# above is that canonical body; THIN_MAKEFILE is the owned root that includes it.
+THIN_MAKEFILE = "include racecar.mk\n"
+
+
+def _racecar_mk(body: str = CANON_MAKEFILE) -> str:
+    return body
+
 
 CANON_PRECOMMIT = """\
 repos:
@@ -208,9 +305,6 @@ repos:
       - id: todo-format
         entry: x
         language: system
-      - id: claude-md-shape
-        entry: x
-        language: system
       - id: file-placement
         entry: x
         language: system
@@ -227,7 +321,8 @@ def _seed_src(tmp_path: Path, **overrides: str | None) -> Path:
         "pyproject.toml": CANON_LIBRARY_PYPROJECT,
         "requirements.txt": CANON_REQUIREMENTS,
         ".gitignore": CANON_GITIGNORE,
-        "Makefile": CANON_MAKEFILE,
+        "Makefile": THIN_MAKEFILE,
+        "racecar.mk": _racecar_mk(),
         ".pre-commit-config.yaml": CANON_PRECOMMIT,
         "CHANGELOG.md": CANON_CHANGELOG,
     }
@@ -255,7 +350,8 @@ def _seed_pypkg_djapp(tmp_path: Path, **overrides: str | None) -> Path:
         "djapp/core/__init__.py": "",
         "djapp/project/__init__.py": "",
         ".gitignore": CANON_GITIGNORE,
-        "Makefile": CANON_MAKEFILE,
+        "Makefile": THIN_MAKEFILE,
+        "racecar.mk": _racecar_mk(),
         ".pre-commit-config.yaml": CANON_PRECOMMIT,
         "CHANGELOG.md": CANON_CHANGELOG,
     }
@@ -304,7 +400,7 @@ def test_pypkg_djapp_django_group_missing_djhtml_is_blocker(tmp_path: Path) -> N
     (PACKAGING.md §6). This is the lever that propagates the djhtml canon to every
     existing Django adopter: their gate flags the gap until they add it."""
     no_djhtml = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
-        'django = [\n    "djhtml",\n]\n',
+        'django = [\n    "djhtml",\n    "pylint-django>=2.5",\n]\n',
         'django = [\n    "pylint-django>=2.5",\n]\n',
     )
     repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": no_djhtml})
@@ -332,7 +428,9 @@ def test_no_pyproject_anywhere_is_blocker(tmp_path: Path) -> None:
 
 
 def test_wrong_requires_python_is_blocker(tmp_path: Path) -> None:
-    bad = CANON_LIBRARY_PYPROJECT.replace('requires-python = ">=3.12"', 'requires-python = ">=3.10"')
+    bad = CANON_LIBRARY_PYPROJECT.replace(
+        'requires-python = ">=3.12"', 'requires-python = ">=3.10"'
+    )
     repo = _seed_src(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1
@@ -353,7 +451,7 @@ def test_dev_in_old_optional_dependencies_location_is_blocker(tmp_path: Path) ->
     """PEP 735 supersedes [project.optional-dependencies].dev."""
     bad = CANON_LIBRARY_PYPROJECT.replace(
         "[dependency-groups]\ndev = [",
-        '[project.optional-dependencies]\ndev = [',
+        "[project.optional-dependencies]\ndev = [",
     )
     repo = _seed_src(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
@@ -363,7 +461,7 @@ def test_dev_in_old_optional_dependencies_location_is_blocker(tmp_path: Path) ->
 
 
 def test_forbidden_tool_uv_block_is_blocker(tmp_path: Path) -> None:
-    bad = CANON_LIBRARY_PYPROJECT + '\n[tool.uv]\nworkspace = true\n'
+    bad = CANON_LIBRARY_PYPROJECT + "\n[tool.uv]\nworkspace = true\n"
     repo = _seed_src(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1
@@ -404,7 +502,9 @@ def test_pypkg_djapp_missing_djapp_pyproject_is_blocker(tmp_path: Path) -> None:
 
 
 def test_djapp_with_project_block_is_finding(tmp_path: Path) -> None:
-    bad = '[project]\nname = "myapp-djapp"\nversion = "0.0.1"\n\n' + CANON_DJAPP_PYPROJECT
+    bad = (
+        '[project]\nname = "myapp-djapp"\nversion = "0.0.1"\n\n' + CANON_DJAPP_PYPROJECT
+    )
     repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": bad})
     result = _run(repo)
     # Finding only, not Blocker
@@ -414,7 +514,7 @@ def test_djapp_with_project_block_is_finding(tmp_path: Path) -> None:
 
 
 def test_djapp_with_tool_block_is_finding(tmp_path: Path) -> None:
-    bad = CANON_DJAPP_PYPROJECT + '\n[tool.black]\nline-length = 100\n'
+    bad = CANON_DJAPP_PYPROJECT + "\n[tool.black]\nline-length = 100\n"
     repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 0  # finding only
@@ -430,6 +530,8 @@ def test_djapp_with_tool_block_is_finding(tmp_path: Path) -> None:
 def test_pypkg_djapp_profile_only_isort_is_blocker(tmp_path: Path) -> None:
     """The bug: a pypkg+djapp lib pyproject with only profile="black" (no
     known_first_party / src_paths) used to pass. It must now Blocker."""
+    # profile-only isort, singular root_package; the pypkg/src + djapp/ layout makes
+    # detection classify it pypkg+djapp, so the multi-root isort coverage check fires.
     bad = CANON_LIBRARY_PYPROJECT  # profile-only isort, singular root_package
     repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": bad})
     result = _run(repo)
@@ -458,7 +560,9 @@ def test_pypkg_djapp_isort_src_paths_without_djapp_is_blocker(tmp_path: Path) ->
     assert "[tool.isort].src_paths" in result.stdout
 
 
-def test_pypkg_djapp_isort_known_first_party_missing_root_is_blocker(tmp_path: Path) -> None:
+def test_pypkg_djapp_isort_known_first_party_missing_root_is_blocker(
+    tmp_path: Path,
+) -> None:
     """known_first_party omits 'core' -> isort would misclassify it third-party."""
     bad = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
         'known_first_party = ["myapp", "apps", "core", "project"]',
@@ -646,9 +750,10 @@ def test_missing_venv_rule_in_gitignore_is_blocker(tmp_path: Path) -> None:
 
 def test_missing_makefile_target_is_blocker(tmp_path: Path) -> None:
     import re as _re
+
     bad = _re.sub(r"docs: ## d\n(?:\t[^\n]*\n)+\n?", "", CANON_MAKEFILE)
     bad = bad.replace(" docs", "")
-    repo = _seed_src(tmp_path, Makefile=bad)
+    repo = _seed_src(tmp_path, **{"racecar.mk": _racecar_mk(bad)})
     result = _run(repo)
     assert result.returncode == 1
     assert "missing-target:docs" in result.stdout
@@ -656,10 +761,29 @@ def test_missing_makefile_target_is_blocker(tmp_path: Path) -> None:
 
 def test_uv_invocation_in_makefile_is_blocker(tmp_path: Path) -> None:
     bad = CANON_MAKEFILE + "\nuv-install:\n\tuv pip install -e .\n"
-    repo = _seed_src(tmp_path, Makefile=bad)
+    repo = _seed_src(tmp_path, **{"racecar.mk": _racecar_mk(bad)})
     result = _run(repo)
     assert result.returncode == 1
     assert "non-canon-tool:uv" in result.stdout
+
+
+def test_legacy_single_file_makefile_nudges_to_sync(tmp_path: Path) -> None:
+    """A pre-fold repo (full Makefile, no racecar.mk) still passes, with a sync nudge."""
+    repo = _seed_src(tmp_path, Makefile=CANON_MAKEFILE, **{"racecar.mk": None})
+    result = _run(repo)
+    assert result.returncode == 0
+    assert "no-racecar-mk" in result.stdout
+
+
+def test_thin_makefile_missing_racecar_mk_is_blocker(tmp_path: Path) -> None:
+    """Owned Makefile includes racecar.mk but the generated file is gone -> one blocker."""
+    repo = _seed_src(
+        tmp_path, **{"racecar.mk": None}
+    )  # Makefile defaults to the thin include
+    result = _run(repo)
+    assert result.returncode == 1
+    assert "racecar.mk" in result.stdout
+    assert "make sync" in result.stdout
 
 
 # ---------------------------------------------------------------------------

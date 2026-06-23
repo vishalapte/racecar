@@ -8,7 +8,23 @@ This file is the project-shell counterpart to [`PYTHON.md`](PYTHON.md). PYTHON.m
 
 PACKAGING.md is **one opinion** of how to package a Python project. It is opinionated, not universal — a uv-shop has a different defensible opinion — but within racecar this opinion is the standard.
 
-The opinion accommodates four project shapes. The choice of shape is local to the project; the rest of the opinion (PEP 621 + PEP 735 pyproject as sole source of truth, `make check-full` as CI gate, the dev tool set, `.venv/` discipline, no VC-backed tooling) is identical across all four. Shape is carried into the Makefile by several variables: `SRC` (where the Python source lives), `PKG` (the importable package path used by audits), `DJAPP` (the Django app directory, empty when not Django), `LIB_PYPROJECT` (path to the library pyproject), and `DJAPP_PYPROJECT` (path to the djapp pyproject, only for Shape pypkg+djapp).
+The opinion accommodates four project shapes. The choice of shape is local to the project; the rest of the opinion (PEP 621 + PEP 735 pyproject as sole source of truth, `make check-full` as CI gate, the dev tool set, `.venv/` discipline, no VC-backed tooling) is identical across all four. From the shape, `racecar.mk` sets several variables that the rest of the build reads: `SRC` (where the Python source lives), `PKG` (the importable package path used by audits), `DJAPP` (the Django app directory, empty when not Django), `LIB_PYPROJECT` (path to the library pyproject), and `DJAPP_PYPROJECT` (path to the djapp pyproject, only for Shape pypkg+djapp).
+
+### How the shape is determined: governed by what is on disk
+
+The shape is **not declared anywhere**. It is a function of the project's layout: racecar reads which files exist and computes the shape from them. This is deliberate. The directory structure already *is* the statement of shape, so a separate declared value (a `shape = "..."` key) would be a second home for the same fact, which is the drift this framework exists to prevent. Lay down the canonical files for a shape and the project *is* that shape; there is no token to also set, none to forget, and none to let go stale.
+
+The shape is the result of this ordered decision (first match wins). Read "`X` exists" as "the path `X` is present in the repo":
+
+1. `pypkg/src/pyproject.toml` exists **and** a `djapp/` tree exists → **`pypkg+djapp`**
+2. `pypkg/src/pyproject.toml` exists → **`pypkg`**
+3. root `pyproject.toml` exists **and** Django is present → **`djapp`**
+4. root `pyproject.toml` exists → **`src`**
+5. none of the above → **stock** (no recognized shape: neutral defaults, see §7)
+
+where a **`djapp/` tree** means `djapp/manage.py` exists, and **Django is present** means a root `manage.py` or a `djapp/` tree exists. The marker is always `manage.py`, never a bare `djapp/` directory: a `djapp/` holding only a pyproject (no `manage.py`) is not a runnable Django app, so it does not make the project a djapp.
+
+That rule lives in exactly two places, held in lockstep by a coherence test: `arch-coherence/scripts/check_packaging.py` (`detect_shape`, used by the audit) and `templates/classic/racecar.mk` (the same decision in Make, so the build is self-contained — see §7). It is duplicated on purpose, not shared: the build must be able to determine its own shape with nothing but `make` present (no Python, no venv), and a foundation that needs an external process to know what it is would not be a foundation. The cost of the duplication is bounded by the coherence test, not waved away.
 
 **Shapes are orthogonal to faces.** This file's shape axis answers *how the project is packaged*; the *faces axis* (how the one library is exposed: `cli` / `api` / `mcp` / `django`) is a separate concern with its own home in [`FACES.md`](FACES.md). A `src`-shape project can be `lib + cli + mcp`; the `djapp` shape is one packaging of the `django` face. Do not conflate the two axes; see [`FACES.md`](FACES.md) §8.
 
@@ -22,7 +38,7 @@ The opinion accommodates four project shapes. The choice of shape is local to th
 Shape `djapp` has two placements, distinguished by where `manage.py` sits — both are the same shape, same library pyproject at root, same canon:
 
 - **Nested** — `djapp/manage.py`; the table row above (`SRC=djapp`, `DJAPP=djapp`, `PKG=djapp/<app>`).
-- **Standalone** — `manage.py` at repo root; the whole repo *is* the Django project (e.g. an `apps/` + `config/` layout). `SRC=.`, `DJAPP=.`, `PKG` lists the Django package directories at root. `check_packaging.py` detects either placement.
+- **Standalone** — `manage.py` at repo root; the whole repo *is* the Django project (e.g. an `apps/` + `config/` layout). `racecar.mk` sets `SRC=.` and leaves `DJAPP` empty (with `SRC=.` the whole tree is already covered), `PKG` defaults to `.`; narrow `PKG` to the actual Django package directories with a `:=` override in the owned `Makefile`. Both placements are the same `djapp` shape; `racecar.mk` and `check_packaging.py` recognize either.
 
 Invariants across all four shapes — these never move:
 
@@ -151,7 +167,7 @@ Pipenv was the original "pip + virtualenv + lockfile" tool, PyPA-affiliated. Its
 
 ### pip-tools — considered, not in canon
 
-Jazzband-maintained (community OSS, neutral governance). `pip-compile` produces a portable `requirements.txt` lockfile from `pyproject.toml`. Earlier versions of this canon required `pip-tools`; it was removed when the canon stopped requiring lockfiles altogether (see §5). pip-tools 7.x does not yet support `pip install --group` for PEP 735 dependency groups, which is the canon's dev-deps mechanism; if pip-tools adds `--group` support and the project actually wants a lockfile, install it project-side as needed. It is not on the canon dev list.
+Jazzband-maintained (community OSS, neutral governance). `pip-compile` produces a portable `requirements.txt` lockfile from `pyproject.toml`. The canon does not require lockfiles (see §5), so pip-tools is not on the canon dev list. pip-tools 7.x also does not yet support `pip install --group` for PEP 735 dependency groups, the canon's dev-deps mechanism; if it adds `--group` support and a project wants a lockfile, install it project-side as needed.
 
 ## 3. Reference templates
 
@@ -199,7 +215,7 @@ The `[tool.pylint]` configuration is **identical across racecar projects** — l
 - **Docstrings: class and function required, module not.** `missing-module-docstring` is disabled — a module's role lives in its subsystem `README` / `DESIGN` / `SYSTEM` / `CLAUDE` doc, not a one-line restatement of the filename. `missing-class-docstring` (C0115) and `missing-function-docstring` (C0116) must **not** be disabled: a class docstring states what the abstraction is, the highest-value orientation per token; functions follow. Names exempt from the requirement, via `[tool.pylint.BASIC]`: private (`^_`), pytest functions (`test_*`), `Test*` classes, and bodies under `docstring-min-length` lines.
 - **Complexity caps are raised, not disabled.** `[tool.pylint.DESIGN]` bumps `max-args` / `max-locals` / `max-branches` etc. so cohesive data and CLI-builder code passes, while keeping the backstop. Disabling `too-many-*` outright is non-canon — raise the cap instead.
 - **`min-similarity-lines = 12`** clears the false positives that the default of 4 raises on idiomatic per-verb CLI scaffolding.
-- Django projects (Shape `pypkg+djapp` / `djapp`) append `"pylint_django"` to `[tool.pylint.MAIN].load-plugins`.
+- `load-plugins` stays the library set (`pylint_pytest`) for all shapes; Django projects do NOT add `pylint_django` here. It is loaded on the djapp only, by `racecar.mk`'s `lint` target, for the reasons in §6.
 
 ### Pyproject rules (djapp pyproject — Shape pypkg+djapp only)
 
@@ -288,7 +304,10 @@ dev = [
 
 `pip-tools` is intentionally not on the list: the canon does not include a lockfile-generation workflow (see §5). Projects that want a lockfile install pip-tools themselves or use `pip freeze`.
 
-**Django shapes add one formatter.** Shapes `pypkg+djapp` and `djapp` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Its one racecar-canonical entry is **`djhtml`** — an idempotent, permissively-licensed community-OSS reindenter for Django/Jinja template tags. `black` owns the Python; templates carry no Python to format, so `djhtml` is the template-side counterpart. It runs in `make fmt` / `make fmt-check` gated on `$(DJAPP)` (a no-op in non-Django shapes) and as a `types: [html]` pre-commit hook. `check_packaging.py` requires `djhtml` in the django group for any repo with a `manage.py`. The remainder of the django group (test, coverage, DRF helpers) is project-choice, not canon. `djhtml`, not the heavier `djlint`, is the canon: djlint's reformatter is a louder linter-first tool under a GPL license whose idempotence is empirical rather than structural; `djhtml` only reindents, so its idempotence is by construction.
+**Django shapes add two canonical dev tools.** Shapes `pypkg+djapp` and `djapp` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Two entries are racecar-canonical; `check_packaging.py` requires both in the django group for any repo with a `manage.py`. The rest of that group (test, coverage, DRF helpers) is project-choice, not canon.
+
+- **`djhtml`** — an idempotent, permissively-licensed community-OSS reindenter for Django/Jinja template tags. `black` owns the Python; templates carry no Python to format, so `djhtml` is the template-side counterpart. It runs in `make fmt` / `make fmt-check` gated on `$(DJAPP)` (a no-op in non-Django shapes) and as a `types: [html]` pre-commit hook. `djhtml`, not the heavier `djlint`, is the canon: djlint's reformatter is a louder linter-first tool under a GPL license whose idempotence is empirical rather than structural; `djhtml` only reindents, so its idempotence is by construction.
+- **`pylint-django`** — the community-OSS pylint plugin that teaches pylint the Django ORM (so `Model.objects`, the `Meta` inner class, and the model metaclass stop raising false positives). It is loaded **on the djapp only**: `racecar.mk`'s `lint` target lints `$(SRC)` with the plain library config and lints `$(DJAPP)` with `--load-plugins=pylint_django`. The library is not Django and may not even import it, so the plugin is not loaded over the library tree, and adopters do not hand-edit `[tool.pylint.MAIN].load-plugins` (re-syncing `racecar.mk` is the whole change). Without it the django app lints against the library config and false-positives on every ORM idiom, which kept `make check` red.
 
 **Racecar's specific commitments.** Pinning the exact list (rather than letting projects choose between e.g. pylint and flake8) is racecar's call. It produces consistency across projects at the cost of some flexibility. Adding a tool to this list is a standards-change conversation, not a project-by-project decision.
 
@@ -332,7 +351,16 @@ Projects that do not use DRF may omit `drf-spectacular`. Projects not using debu
 
 This is the most racecar-specific section in the file. PEPs do not define a `Makefile` shape for Python projects, and many projects use `tox` / `nox` / shell scripts instead of Make. Racecar requires Make and prescribes a target surface so every project's developer experience (`make check`, `make install`, etc.) is identical. The targets *inside* the file (calling `black`, `pytest`, `mypy`, etc.) are mainstream tool invocations; the *contract* — exactly which targets exist, what they chain, what `make check` includes — is racecar's.
 
-The canonical Makefile lives at [`../templates/classic/Makefile`](../templates/classic/Makefile). Copy it verbatim to the project root; no placeholder substitution is needed because the file is identical across all racecar projects.
+### The fold: owned `Makefile` + identical `racecar.mk`
+
+The build is split into two files so that the canonical half is never hand-maintained:
+
+- **`Makefile`** (owned; the front door). A thin root you own and edit freely: project-specific targets and variable overrides, plus `include racecar.mk`. racecar never rewrites it. In the simplest case it is one line: `include racecar.mk`. Skeleton: [`../templates/classic/Makefile`](../templates/classic/Makefile).
+- **`racecar.mk`** (canonical; vendored). Every standard target plus the shape logic. It is **identical in every racecar project** — there is no per-repo content. It detects the shape from the layout at make-time (the §"Scope" decision, written in Make) and sets `SRC` / `PKG` / `DJAPP` / `LIB_PYPROJECT` / `DJAPP_PYPROJECT` with `?=`, falling back to stock for an unrecognized layout. `make sync` copies it verbatim from [`../templates/classic/racecar.mk`](../templates/classic/racecar.mk); any hand-edit is lost on the next sync. It is committed, so `make` runs offline with nothing from racecar present.
+
+Why the split: a single hand-filled template drifts. When the canonical machinery and the project's own customization share one file, trimming or editing the former to suit a project (the common, reasonable urge) silently diverges it from base. The fold removes the surface entirely — `racecar.mk` is the same bytes everywhere (so there is nothing per-repo to drift), and the project half is a separate owned file (so overwriting `racecar.mk` never clobbers it). Because the shape is computed live from what is on disk, there is no stored shape value, no stamp, and no "regenerate for the new shape" step: restructure the repo (e.g. add `pypkg/src/`) and the next `make` simply reads the new layout. `check_packaging` reads both files for the target contract.
+
+A repo that predates the fold (a single full Makefile, no `racecar.mk`) still passes; `check_packaging` nudges it to `make sync`. Migration extracts project-specific targets into the owned `Makefile` and drops in `racecar.mk`; it never clobbers a customized recipe.
 
 ### Target surface
 
@@ -362,7 +390,7 @@ Every project's `make help` lists the same targets:
 
 ### Variables
 
-The template uses these variables; overriding any is supported but not part of the contract:
+`racecar.mk` sets these variables. The shape-dependent five (`SRC`, `PKG`, `DJAPP`, `LIB_PYPROJECT`, `DJAPP_PYPROJECT`) are chosen by the make-time shape decision (§"Scope") and assigned with `?=`, so the owned `Makefile` can override any with an earlier `:=`. The rest are fixed:
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -399,7 +427,7 @@ These are racecar's call, the natural consequence of the two-root `fmt`/`arch` i
 - **`clean` is safe to run any time.** It removes caches (`__pycache__`, `.mypy_cache`, `.pytest_cache`, `.import_linter_cache`) and build artifacts (`build/`, `dist/`, `*.egg-info/`, coverage outputs). It never removes data directories, the venv, or anything a developer would not want to lose.
 - **`distclean` extends `clean` by removing `.venv/`.** Use when reproducing from scratch or after a Python upgrade.
 - **`system-deps` installs OS-level dependencies that pip cannot provide** (e.g. `poppler` for `pdftotext`, `wkhtmltopdf`, `ffmpeg`). `install` depends on it, so a cold `make install` always runs it. The implementation lives in `scripts/install_system_deps.sh` (copy from `templates/classic/install_system_deps.sh`). The script must be idempotent — it checks for each command's presence before installing. Projects with no system deps keep the stub with no calls.
-- **Project-specific targets are allowed** below the canonical surface (e.g. data sync, custom workflows), as long as the canonical targets above keep their contracts.
+- **Customize in the owned `Makefile`, never in `racecar.mk`.** Add project-specific targets below the `include`; override a canonical recipe by redefining it there (GNU Make: last definition wins); override a shape variable by setting it with `:=` above the include. Edits to `racecar.mk` are erased on the next `make sync`.
 
 ## 8. Versioning and `CHANGELOG.md`
 
@@ -412,7 +440,7 @@ The library pyproject's `[project].version` is the **sole** source of truth for 
 
 For Shape `pypkg+djapp`: the djapp pyproject has no `[project]` block and therefore no version. djapp is a deployment, not a release — its release tracking (git SHA, deploy timestamp, image tag) lives outside racecar canon.
 
-**No separate `VERSION` file.** Earlier versions of this canon required a `VERSION` file at repo root that had to match the pyproject. That created a drift class for marginal benefit (shell-readability without parsing TOML). The drift class is removed: pyproject is the single source. Shell scripts that need the version read it via:
+**No separate `VERSION` file.** A `VERSION` file at repo root duplicating the pyproject version is a drift class for marginal benefit (shell-readability without parsing TOML); pyproject is the single source. Shell scripts that need the version read it via:
 
 ```bash
 python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
