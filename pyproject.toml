@@ -15,3 +15,44 @@ profile = "black"
 
 [tool.pytest.ini_options]
 addopts = "-q"
+
+[tool.pylint.MASTER]
+# Honored by the doc-coherence checks (check_docs / check_file_placement) as the
+# one place to scope markdown out of the navigable doc surface. drafts/ holds WIP
+# essays and landing copy — scratchpad content, not docs the resolver registers.
+ignore-paths = ["^drafts/"]
+
+[tool.pylint."MESSAGES CONTROL"]
+# R0801 (duplicate-code): the lens directories (arch-coherence/, doc-coherence/,
+# llm-summary/, scripts/) are deliberately import-isolated — a check script in one
+# lens may not import a sibling in another, because the lenses are delivered and run
+# independently in adopter repos where only one lens tree may be present. The shared
+# idioms pylint flags (the `_find_repo_root` .git walk-up, the argparse `--dest`
+# block, the CHECK_SCRIPTS/TEMPLATE_FILES manifests) are therefore copied by design,
+# not extractable into a common module. Disabled globally rather than per-site
+# because the duplicate pairs shift as the scripts evolve.
+#
+# R0903 (too-few-public-methods): every checker defines a small `Finding` record
+# (and a `Rule` Protocol) that is pure data plus a `render` — one public method by
+# design. The pattern is pervasive across the auditors; flagging each instance is
+# noise, not signal.
+disable = ["duplicate-code", "too-few-public-methods"]
+
+[tool.pylint.DESIGN]
+# These caps are raised, never disabled, with the rationale recorded here. Each
+# breach is in a deliberately-flat stdlib auditor where the linear branch/local
+# count is the clearest expression of the rule being checked; decomposing further
+# would scatter the logic without reducing it.
+# too-many-branches: check_brief.validate walks every brief section in one pass (32);
+#   check_todo_format / check_face_orchestration enumerate format rules inline (13/18).
+max-branches = 32
+# too-many-locals: scaffolders and sync drivers thread many paths in one frame
+#   (init_project, sync_claude_md, sync_scripts, sync_remote, check_todo_format,
+#   check_dj_model_ref_as_string — peak 23).
+max-locals = 23
+# too-many-arguments: init_project scaffolder entry points take one parameter per
+#   template substitution (peak 10).
+max-args = 10
+# too-many-nested-blocks: check_face_orchestration's manifest walk nests one level
+#   past the default (6).
+max-nested-blocks = 6

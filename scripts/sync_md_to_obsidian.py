@@ -38,6 +38,7 @@ CONFIG_PATH = Path.home() / ".config" / "obsidian-sync.toml"
 
 
 def repo_root(start: Path) -> Path:
+    """Return the nearest ancestor of `start` containing a `.git` directory."""
     for p in [start, *start.parents]:
         if (p / ".git").exists():
             return p
@@ -45,6 +46,7 @@ def repo_root(start: Path) -> Path:
 
 
 def load_config_dest() -> Path | None:
+    """Read `dest_root` from the TOML config, or None if unset/absent."""
     if not CONFIG_PATH.is_file():
         return None
     data = tomllib.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -55,6 +57,7 @@ def load_config_dest() -> Path | None:
 
 
 def resolve_dest(cli_dest: str | None) -> Path:
+    """Resolve the destination root from --dest, env, then config (in that order)."""
     if cli_dest:
         return Path(cli_dest).expanduser().resolve()
     env = os.environ.get("OBSIDIAN_SYNC_ROOT")
@@ -65,11 +68,12 @@ def resolve_dest(cli_dest: str | None) -> Path:
         return cfg.resolve()
     raise SystemExit(
         "no destination configured; pass --dest, set OBSIDIAN_SYNC_ROOT, "
-        f"or put dest_root = \"...\" in {CONFIG_PATH}"
+        f'or put dest_root = "..." in {CONFIG_PATH}'
     )
 
 
 def tracked_md_files(root: Path, *, include_dotfiles: bool) -> list[Path]:
+    """List git-tracked `*.md` paths under `root`, optionally excluding dotpaths."""
     out = subprocess.check_output(
         ["git", "-C", str(root), "ls-files", "-z", "--", "*.md"],
     )
@@ -81,6 +85,7 @@ def tracked_md_files(root: Path, *, include_dotfiles: bool) -> list[Path]:
 
 
 def copy_one(src: Path, dst: Path, *, dry_run: bool) -> str:
+    """Copy `src` to `dst` if different; return the action taken as a label."""
     if dst.is_file() and filecmp.cmp(src, dst, shallow=False):
         return "skip"
     if dry_run:
@@ -106,6 +111,7 @@ def prune_extras(dest_root: Path, expected: set[Path], *, dry_run: bool) -> list
 
 
 def main() -> int:
+    """Mirror tracked markdown into the Obsidian vault; return an exit code."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dest", help="override destination root")
     ap.add_argument("--dry-run", action="store_true")

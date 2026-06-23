@@ -53,11 +53,14 @@ sys.path.insert(0, str(RACECAR_ROOT / "hooks"))
 # the installer instead of restating their constants. Both live outside a
 # package (hooks/ and scripts/ are plain directories), so the sys.path inserts
 # above are the only way in — hence the post-path imports.
-# pylint: disable=wrong-import-position
+# import-error: these modules live in hooks/ and scripts/ — plain directories, not
+# packages — reachable only via the runtime sys.path inserts above, which pylint
+# does not model. The imports resolve when doctor.py actually runs.
+# pylint: disable=wrong-import-position,import-error
 import session_load_standards  # noqa: E402  (hooks/session_load_standards.py)
 import sync_claude_md  # noqa: E402  (scripts/sync_claude_md.py)
 
-# pylint: enable=wrong-import-position
+# pylint: enable=wrong-import-position,import-error
 
 # Optional overlays: installed by a separate command (`make expert`), so their
 # symlink absence is not a defect.
@@ -89,13 +92,16 @@ class Report:
         self.warnings = 0
 
     def ok(self, layer: str, message: str) -> None:
+        """Record a passing check for `layer`."""
         print(f"  ok    [{layer}] {message}")
 
     def fail(self, layer: str, message: str) -> None:
+        """Record a failing check for `layer` and bump the failure count."""
         self.failures += 1
         print(f"  FAIL  [{layer}] {message}")
 
     def warn(self, layer: str, message: str) -> None:
+        """Record a non-fatal warning for `layer` and bump the warning count."""
         self.warnings += 1
         print(f"  warn  [{layer}] {message}")
 
@@ -177,6 +183,7 @@ def _check_skill_symlinks(report: Report, skills_dir: Path) -> None:
 
 
 def check_files(report: Report, skills_dir: Path) -> None:
+    """Layer 1: verify baseline docs, hook scripts, and skill symlinks are present."""
     _check_baseline_docs(report)
     _check_hook_scripts(report)
     _check_skill_symlinks(report, skills_dir)
@@ -201,6 +208,7 @@ def _find_wired_command(
 
 
 def check_wiring(report: Report, settings_path: Path) -> None:
+    """Layer 2: verify the SessionStart hook is wired into settings.json."""
     if not settings_path.is_file():
         report.fail("wiring", f"{settings_path} does not exist (run ./install)")
         return
@@ -307,6 +315,7 @@ def transcript_dir_for(cwd: Path, claude_home: Path) -> Path:
 
 
 def check_context(report: Report, token: str | None, claude_home: Path) -> None:
+    """Layer 3: verify the load-token challenge proves the baseline reached context."""
     if token is None:
         report.warn("context", "no token to search for (layer 3 failed)")
         return
@@ -374,6 +383,7 @@ def fix(skills_dir: Path) -> None:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser for the doctor."""
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument(
         "--settings",
@@ -392,6 +402,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str]) -> int:
+    """Run all doctor layers (optionally repairing wiring); return an exit code."""
     args = parser().parse_args(argv)
     claude_home = Path.home() / ".claude"
     settings_path = sync_claude_md.resolve_path(

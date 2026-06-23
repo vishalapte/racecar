@@ -81,6 +81,7 @@ SESSION_LOAD_MATCHERS = ("startup", "resume", "clear", "compact")
 
 
 def render_block(racecar_root: Path) -> str:
+    """Render the marker-delimited racecar pointer block to splice into CLAUDE.md."""
     claude_md = racecar_root / "CLAUDE.md"
     shared = racecar_root / "shared"
     readme = racecar_root / "README.md"
@@ -106,7 +107,7 @@ def render_block(racecar_root: Path) -> str:
         f"- before committing (dry-run the hooks)          -> /racecar-commit-preflight\n"
         f"- split a working tree into commits              -> /racecar-commit-decompose\n"
         f"- audit this project against racecar             -> /racecar-normalize\n"
-        f"- \"is racecar loaded?\"                           -> /racecar-doctor\n\n"
+        f'- "is racecar loaded?"                           -> /racecar-doctor\n\n'
         f"Enforce mechanically in THIS repo: `make arch` / `make check` plus "
         f"pre-commit. A failure names file:line; fix it before proceeding.\n"
         f"{END_MARKER}\n"
@@ -114,6 +115,7 @@ def render_block(racecar_root: Path) -> str:
 
 
 def replace_or_append(existing: str, block: str) -> str:
+    """Replace the marked block in `existing` if present, else append it."""
     if BEGIN_MARKER in existing and END_MARKER in existing:
         before, _, rest = existing.partition(BEGIN_MARKER)
         _, _, after = rest.partition(END_MARKER)
@@ -205,11 +207,13 @@ def sync_settings(
     post_command = str(racecar_root / "hooks" / POST_HOOK_BASENAME)
 
     if settings_path.exists():
-        raw = settings_path.read_text()
+        raw = settings_path.read_text(encoding="utf-8")
         try:
             settings = json.loads(raw) if raw.strip() else {}
         except json.JSONDecodeError as e:
-            raise SystemExit(f"sync_claude_md: cannot parse {settings_path}: {e}")
+            raise SystemExit(
+                f"sync_claude_md: cannot parse {settings_path}: {e}"
+            ) from e
     else:
         raw = ""
         settings = {}
@@ -312,7 +316,7 @@ def sync_settings(
 
     if changed and not dry_run:
         settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(rendered)
+        settings_path.write_text(rendered, encoding="utf-8")
 
     return changed, rendered
 
@@ -321,6 +325,7 @@ def sync_settings(
 
 
 def resolve_path(arg: str | None, env: str, default: Path) -> Path:
+    """Resolve a path from the CLI arg, then the named env var, then `default`."""
     if arg:
         return Path(arg).expanduser().resolve()
     env_value = os.environ.get(env)
@@ -333,6 +338,7 @@ def resolve_path(arg: str | None, env: str, default: Path) -> Path:
 
 
 def main() -> int:
+    """Sync the CLAUDE.md pointer block and settings.json hook; return an exit code."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--claude-md",
@@ -359,7 +365,7 @@ def main() -> int:
     )
 
     block = render_block(RACECAR_ROOT)
-    existing_md = claude_md.read_text() if claude_md.exists() else ""
+    existing_md = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
     updated_md = replace_or_append(existing_md, block)
 
     settings_changed, rendered_settings = sync_settings(
@@ -376,7 +382,7 @@ def main() -> int:
     md_changed = updated_md != existing_md
     if md_changed:
         claude_md.parent.mkdir(parents=True, exist_ok=True)
-        claude_md.write_text(updated_md)
+        claude_md.write_text(updated_md, encoding="utf-8")
         print(
             f"sync_claude_md: {'created' if not existing_md else 'updated'} {claude_md}"
         )

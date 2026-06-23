@@ -122,17 +122,21 @@ class Findings:
         self.entries: list[tuple[str, str]] = []
 
     def error(self, msg: str) -> None:
+        """Record an error-severity finding."""
         self.entries.append(("error", msg))
 
     def warning(self, msg: str) -> None:
+        """Record a warning-severity finding."""
         self.entries.append(("warning", msg))
 
     @property
     def error_count(self) -> int:
+        """Number of error-severity findings recorded."""
         return sum(1 for sev, _ in self.entries if sev == "error")
 
     @property
     def warning_count(self) -> int:
+        """Number of warning-severity findings recorded."""
         return sum(1 for sev, _ in self.entries if sev == "warning")
 
 
@@ -179,6 +183,7 @@ SURFACE_KINDS = {
 
 
 def require_mapping(value: object, where: str, f: Findings) -> bool:
+    """Assert `value` is a dict; record an error at `where` and return False if not."""
     if not isinstance(value, dict):
         f.error(f"frontmatter: {where} must be a mapping; got {type(value).__name__}")
         return False
@@ -186,6 +191,7 @@ def require_mapping(value: object, where: str, f: Findings) -> bool:
 
 
 def require_list(value: object, where: str, f: Findings) -> bool:
+    """Assert `value` is a list; record an error at `where` and return False if not."""
     if not isinstance(value, list):
         f.error(f"frontmatter: {where} must be a list; got {type(value).__name__}")
         return False
@@ -193,6 +199,7 @@ def require_list(value: object, where: str, f: Findings) -> bool:
 
 
 def validate_generator(generator: object, f: Findings) -> None:
+    """Validate the frontmatter `generator` block."""
     if not require_mapping(generator, "generator", f):
         return
     assert isinstance(generator, dict)
@@ -209,6 +216,7 @@ def validate_generator(generator: object, f: Findings) -> None:
 
 
 def validate_target(target: object, f: Findings) -> None:
+    """Validate the frontmatter `target` block."""
     if not require_mapping(target, "target", f):
         return
     assert isinstance(target, dict)
@@ -216,18 +224,14 @@ def validate_target(target: object, f: Findings) -> None:
     if not isinstance(repo, str) or not repo:
         f.error(f"frontmatter: target.repo must be a non-empty string; got {repo!r}")
     elif not LOWERCASE_REPO_RE.match(repo):
-        f.error(
-            f"frontmatter: target.repo must be lowercase [a-z0-9_-]; got {repo!r}"
-        )
+        f.error(f"frontmatter: target.repo must be lowercase [a-z0-9_-]; got {repo!r}")
     sha = target.get("sha")
     if not isinstance(sha, str) or not sha or not HEX_RE.match(sha):
         f.error(f"frontmatter: target.sha must be a hex string; got {sha!r}")
     date = target.get("date")
     if isinstance(date, str):
         if not ISO_DATE_RE.match(date):
-            f.error(
-                f"frontmatter: target.date must be ISO YYYY-MM-DD; got {date!r}"
-            )
+            f.error(f"frontmatter: target.date must be ISO YYYY-MM-DD; got {date!r}")
     else:
         # PyYAML may parse YYYY-MM-DD as datetime.date — accept that.
         if not isinstance(date, date_cls):
@@ -235,6 +239,7 @@ def validate_target(target: object, f: Findings) -> None:
 
 
 def validate_bundle(bundle: object, f: Findings) -> list[str]:
+    """Validate the `bundle` list and return the declared member file names."""
     if not require_list(bundle, "bundle", f):
         return []
     assert isinstance(bundle, list)
@@ -244,13 +249,16 @@ def validate_bundle(bundle: object, f: Findings) -> list[str]:
     result: list[str] = []
     for i, item in enumerate(bundle):
         if not isinstance(item, str) or not item:
-            f.error(f"frontmatter: bundle[{i}] must be a non-empty string; got {item!r}")
+            f.error(
+                f"frontmatter: bundle[{i}] must be a non-empty string; got {item!r}"
+            )
             continue
         result.append(item)
     return result
 
 
 def validate_entity(entity: object, idx: int, f: Findings) -> None:
+    """Validate one `entities[idx]` frontmatter entry."""
     where = f"entities[{idx}]"
     if not require_mapping(entity, where, f):
         return
@@ -265,23 +273,30 @@ def validate_entity(entity: object, idx: int, f: Findings) -> None:
         f.error(f"frontmatter: {where}.name must be a non-empty string; got {name!r}")
     purpose = entity.get("purpose")
     if not isinstance(purpose, str) or not purpose:
-        f.error(f"frontmatter: {where}.purpose must be a non-empty string (one-sentence description)")
+        f.error(
+            f"frontmatter: {where}.purpose must be a non-empty string "
+            "(one-sentence description)"
+        )
     lifecycle = entity.get("lifecycle", "realized")
     if lifecycle not in LIFECYCLE_VALUES:
         f.error(
-            f"frontmatter: {where}.lifecycle must be one of {sorted(LIFECYCLE_VALUES)}; got {lifecycle!r}"
+            f"frontmatter: {where}.lifecycle must be one of "
+            f"{sorted(LIFECYCLE_VALUES)}; got {lifecycle!r}"
         )
-    # Class-level only: no field tables, no per-case required keys beyond name/case/purpose.
-    # `path_pattern`, `count`, `validator` are optional for content_tree entries (description, not requirement).
+    # Class-level only: no field tables, no per-case required keys beyond
+    # name/case/purpose. `path_pattern`, `count`, `validator` are optional for
+    # content_tree entries (description, not requirement).
     if case == "content_tree":
         if "mutability" in entity and entity.get("mutability") not in MUTABILITY_VALUES:
             f.error(
-                f"frontmatter: {where}.mutability must be one of {sorted(MUTABILITY_VALUES)} when present; "
+                f"frontmatter: {where}.mutability must be one of "
+                f"{sorted(MUTABILITY_VALUES)} when present; "
                 f"got {entity.get('mutability')!r}"
             )
 
 
 def validate_entities(entities: object, f: Findings) -> None:
+    """Validate the `entities` list and each entry within it."""
     if not require_list(entities, "entities", f):
         return
     assert isinstance(entities, list)
@@ -290,6 +305,7 @@ def validate_entities(entities: object, f: Findings) -> None:
 
 
 def validate_relationships(relationships: object, f: Findings) -> None:
+    """Validate the `relationships` DAG list and each edge within it."""
     if not require_list(relationships, "relationships", f):
         return
     assert isinstance(relationships, list)
@@ -312,7 +328,8 @@ def validate_relationships(relationships: object, f: Findings) -> None:
         # on_delete is meaningful for DB FKs only; M:N and non-DB edges may omit it.
         if "on_delete" in rel and rel.get("on_delete") not in ON_DELETE_VALUES:
             f.error(
-                f"frontmatter: {where}.on_delete must be one of {sorted(ON_DELETE_VALUES)} when present; "
+                f"frontmatter: {where}.on_delete must be one of "
+                f"{sorted(ON_DELETE_VALUES)} when present; "
                 f"got {rel.get('on_delete')!r}"
             )
         if "owner_side" in rel and (
@@ -324,6 +341,7 @@ def validate_relationships(relationships: object, f: Findings) -> None:
 
 
 def validate_external_surface(surface: object, f: Findings) -> None:
+    """Validate the `external_surface` block grouping endpoints by surface kind."""
     if not require_mapping(surface, "external_surface", f):
         return
     assert isinstance(surface, dict)
@@ -419,6 +437,7 @@ def validate_external_surface(surface: object, f: Findings) -> None:
 
 
 def validate_frontmatter(frontmatter_text: str, f: Findings) -> dict | None:
+    """Parse and validate the YAML frontmatter; return it as a dict, or None."""
     try:
         data = yaml.safe_load(frontmatter_text)
     except yaml.YAMLError as exc:
@@ -523,6 +542,7 @@ def normalize_heading(text: str) -> str:
 
 
 def check_required_headings(body: str, f: Findings) -> None:
+    """Verify the markdown body carries every required narrative heading."""
     headings = find_headings(body)
     headings_by_text: dict[str, list[tuple[int, int, int]]] = {}
     for lineno, depth, text, offset in headings:
@@ -662,6 +682,7 @@ def check_bundle_membership(
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command-line arguments for the brief check."""
     parser = argparse.ArgumentParser(
         description="Mechanical validator for a racecar-llm-summary brief."
     )
@@ -675,6 +696,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Validate the brief bundle at docs/summary/<REPO>.md; return an exit code."""
     args = parse_args(argv if argv is not None else sys.argv[1:])
     f = Findings()
 
@@ -718,6 +740,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def emit(f: Findings) -> int:
+    """Print all findings and return 1 if any error was recorded, else 0."""
     for severity, msg in f.entries:
         print(f"check_brief: {severity}: {msg}")
     if f.error_count == 0 and f.warning_count == 0:
