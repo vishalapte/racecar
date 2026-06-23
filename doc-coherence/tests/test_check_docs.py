@@ -202,3 +202,38 @@ def test_no_ignore_paths_still_scans_scripts(tmp_path: Path) -> None:
     result = _run(repo)
     assert result.returncode == 1
     assert "MISSINGCANON.md" in result.stderr
+
+
+def test_citation_to_doc_buried_below_search_dirs_is_unreachable(tmp_path: Path) -> None:
+    """Negative space: an unprefixed `FILENAME.md §N` citation is resolved only against
+    REPO_ROOT plus its TOP-LEVEL directories (DOC_SEARCH_DIRS). A target doc buried two
+    levels deep is NOT reachable from that search, so the citation is flagged missing —
+    the same `_find_doc` returns-None path a deleted file would hit. The fix is to cite
+    with a directory prefix; absence of a silent pass is the contract under test."""
+    repo = _seed_repo(tmp_path)
+    deep = repo / "a" / "deep"
+    deep.mkdir(parents=True)
+    (deep / "RULES.md").write_text("# Rules\n\n## 1. First\n\nbody.\n", encoding="utf-8")
+    (repo / "Makefile").write_text(
+        f"# Enforce per RULES.md {_SECT}1.\nall:\n\techo hi\n", encoding="utf-8"
+    )
+    result = _run(repo)
+    assert result.returncode == 1
+    assert "cites missing file" in result.stderr
+    assert "RULES.md" in result.stderr
+
+
+def test_prefixed_citation_to_nonexistent_dir_is_caught(tmp_path: Path) -> None:
+    """Negative space: a directory-prefixed `<dir>/FILENAME.md §N` whose `<dir>` does not
+    exist must NOT silently pass — the prefixed path is resolved against REPO_ROOT only,
+    and a missing target is reported as a missing-file citation."""
+    repo = _seed_repo(tmp_path)
+    (repo / "ghostdir" / "RULES.md").parent.mkdir(parents=True)  # dir exists...
+    # ...but cite a DIFFERENT, nonexistent directory.
+    (repo / "Makefile").write_text(
+        f"# Enforce per nowhere/RULES.md {_SECT}1.\nall:\n\techo hi\n", encoding="utf-8"
+    )
+    result = _run(repo)
+    assert result.returncode == 1
+    assert "cites missing file" in result.stderr
+    assert "nowhere/RULES.md" in result.stderr

@@ -202,6 +202,23 @@ def test_contracts_in_pypkg_src_pyproject_are_found(tmp_path: Path) -> None:
     assert "cli/CLAUDE.md" in result.stdout
 
 
+def test_dir_unreferenced_by_any_contract_needs_no_docs(tmp_path: Path) -> None:
+    """Negative space: a directory is policed for docs ONLY if it is reachable from an
+    import-linter contract package. A sizeable, subdir-bearing directory that NO contract
+    references is never walked, so its missing README/CLAUDE must NOT be flagged. The
+    contract list is the reachability frontier; absence outside it is correct."""
+    repo = _seed_layered_repo(tmp_path)
+    for sub in ("fake", "fake/cli", "fake/core", "fake/core/inner"):
+        _write_doc(repo / sub / "README.md")
+        _write_doc(repo / sub / "CLAUDE.md")
+    # A major dir (has subdirs) NOT named by any contract, with no docs at all.
+    (repo / "unrelated" / "big" / "sub").mkdir(parents=True)
+    (repo / "unrelated" / "big" / "sub" / "mod.py").write_text("z = 1\n", encoding="utf-8")
+    result = _run(repo)
+    assert result.returncode == 0, result.stdout
+    assert "unrelated" not in result.stdout
+
+
 def test_unresolvable_package_emits_info(tmp_path: Path) -> None:
     """A contract pointing at a non-existent package exits 0 with info."""
     repo = _seed_repo(tmp_path)

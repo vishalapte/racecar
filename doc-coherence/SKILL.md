@@ -5,7 +5,7 @@ description: Documentation coherence review — update protocol (PRESERVE, ADD, 
 
 # racecar-doc-coherence
 
-Load [`README.md`](README.md) in full. It holds the update protocol, the mechanical pre-pass, the five document checks, mental models, red flags, decision patterns, feedback format, and invocation prompts.
+Load [`PROTOCOL.md`](PROTOCOL.md) in full. It holds the update protocol, the mechanical pre-pass, the five document checks, mental models, red flags, decision patterns, feedback format, and invocation prompts.
 
 Operational reminder: run the mechanical pre-pass first via Bash before any prose review.
 
