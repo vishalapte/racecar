@@ -100,7 +100,10 @@ LIB_DIR := $(if $(filter pyproject.toml,$(LIB_PYPROJECT)),.,$(patsubst %/pyproje
 # Extra pytest args, e.g. make test PYTEST_ARGS="-k foo -q"
 PYTEST_ARGS ?=
 
-RACECAR_ROOT ?= $(HOME)/dev/vishalapte/racecar
+# Where the racecar checkout lives, used by `make sync`. Discovered from the
+# installed skill symlink so no machine-specific path is baked in. Override with
+# `make sync RACECAR_ROOT=/path/to/racecar` if racecar is not installed as a skill.
+RACECAR_ROOT ?= $(shell readlink "$(HOME)/.claude/skills/racecar" 2>/dev/null)
 
 .DEFAULT_GOAL := help
 .PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \
@@ -221,4 +224,5 @@ distclean: clean ## clean + remove the virtualenv
 	rm -rf $(VENV)
 
 sync: ## Regenerate racecar.mk + canonical check scripts from racecar
+	@test -n "$(RACECAR_ROOT)" || { echo "RACECAR_ROOT unset and no racecar skill symlink found — pass RACECAR_ROOT=/path/to/racecar"; exit 1; }
 	$(PYTHON) $(RACECAR_ROOT)/scripts/sync_scripts.py --dest .
