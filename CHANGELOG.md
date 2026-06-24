@@ -4,6 +4,21 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.10.3 - 2026-06-23
+
+### Fixed
+- **The faces detector stopped raising a false alarm on a top-level entry point that
+  only routes to sub-commands.** `check_face_orchestration` looks for "verticals" — a
+  feature exposed through a thin entry point sitting over a library. A top-level
+  `__main__.py` that does nothing but dispatch to named sub-commands, living next to
+  shared folders like `auth/` or `config/`, was mistaken for a vertical and then flagged
+  for having no library beneath it. But that is a dispatcher plus shared code, not a
+  vertical, so there was nothing wrong to report. The detector now stays quiet when the
+  only entry point is a dispatcher that never reaches into a sibling it would be wiring
+  together; an entry point that does reach a sibling is still flagged, because then it
+  really is wiring one. Advisory only, never blocks a build. Found while upgrading an
+  adopter project.
+
 ## 0.10.2 - 2026-06-23
 
 ### Changed

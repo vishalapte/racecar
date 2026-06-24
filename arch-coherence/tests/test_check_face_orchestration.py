@@ -178,3 +178,45 @@ def test_clean_vertical_emits_no_findings(tmp_path: Path) -> None:
     ):
         assert rule not in result.stdout
     assert "OK (advisory)" in result.stdout
+
+
+def test_fd1_discovery_root_with_shared_layer_is_suppressed(tmp_path: Path) -> None:
+    """FD1: a top-level Pattern-1 discovery root whose sole face is a `__main__` that
+    composes child verticals by name and reaches no in-vertical sibling, co-residing
+    with a shared layer (`auth`/`config`), is out of faces scope, not a non-classifiable
+    vertical. The two siblings make it pass discovery (2+ modules), but classification
+    must suppress the finding. Escalated from a wicket racecar-upgrade."""
+    (tmp_path / "pyproject.toml").write_text(PYPROJECT)
+    root = tmp_path / "src" / "myapp"
+    root.mkdir(parents=True)
+    (root / "__init__.py").write_text("")
+    # discovery root: composes children by name, imports no sibling
+    (root / "__main__.py").write_text(
+        "import argparse\nfrom . import flights, dashboard\n"
+        "def main():\n    argparse.ArgumentParser()\n"
+    )
+    # shared layer: two independent modules, no intra imports (two sinks -> lib is None)
+    (root / "auth.py").write_text("SECRET = 'x'\n")
+    (root / "config.py").write_text("DEBUG = True\n")
+    result = _run(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "non-classifiable" not in result.stdout
+    assert "OK (advisory)" in result.stdout
+
+
+def test_fd1_is_narrow_main_reaching_a_sibling_still_flagged(tmp_path: Path) -> None:
+    """FD1 suppression is narrow: a `__main__` that reaches an in-vertical sibling is
+    wiring through it, so the non-classifiable finding still stands. Only a sibling-free
+    discovery root is out of scope; this guards against over-suppression."""
+    (tmp_path / "pyproject.toml").write_text(PYPROJECT)
+    root = tmp_path / "src" / "myapp"
+    root.mkdir(parents=True)
+    (root / "__init__.py").write_text("")
+    (root / "__main__.py").write_text(
+        "import argparse\nfrom . import config, auth\n"
+        "def main():\n    print(config.DEBUG, auth.SECRET)\n"
+    )
+    (root / "auth.py").write_text("SECRET = 'x'\n")
+    (root / "config.py").write_text("DEBUG = True\n")
+    result = _run(tmp_path)
+    assert "non-classifiable" in result.stdout

@@ -325,6 +325,14 @@ def _identify(v: Vertical, manifest_by_prefix: dict[str, dict]) -> list[Finding]
         return findings  # no face: a plain library vertical, nothing to route.
 
     if v.lib is None:
+        # FD1: a top-level Pattern-1 pure-discovery root, whose sole face is a __main__
+        # that composes child verticals by name and reaches no in-vertical sibling,
+        # co-residing with a shared layer (auth/config/domains/...), is out of faces
+        # scope, not a defective vertical. The siblings are a shared layer the root does
+        # not route through, so there is no lib->api->face structure to classify.
+        # Suppress the finding for it (FACES.md §7 / FD1; advisory-only, never gating).
+        if v.faces == [CANON_MAIN] and not graph.get(CANON_MAIN):
+            return findings
         findings.append(
             Finding(
                 v.name,
