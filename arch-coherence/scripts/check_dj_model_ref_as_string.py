@@ -189,7 +189,7 @@ def _target_node(call: ast.Call) -> ast.expr | None:
 def _violations(path: Path) -> list[tuple[int, str, str]]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except SyntaxError:
+    except (SyntaxError, UnicodeDecodeError):
         return []
     same_file_classes = {
         node.name for node in tree.body if isinstance(node, ast.ClassDef)
@@ -261,6 +261,14 @@ def _package_index(project_root: Path) -> dict[str, list[Path]]:
             d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")
         ]
         here = Path(dirpath)
+        # The repo root is never a root-package directory: root packages live under a
+        # source root (pypkg/src, djapp/, or a subdir of a standalone djapp). Skipping
+        # it stops a repo named after its package (e.g. `gfem/` containing
+        # `pypkg/src/gfem/`) from shadowing the real package -- otherwise the shallowest
+        # match is the repo root, whose rglob then walks `.venv` and crashes on the
+        # first non-UTF-8 dependency file.
+        if here == project_root:
+            continue
         index.setdefault(here.name, []).append(here)
     return index
 

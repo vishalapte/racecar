@@ -4,6 +4,69 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.12.0 - 2026-06-26
+
+### Added
+- **Two stacked skills that turn a CLI-compliant project into a deployable REST + MCP
+  web service: `racecar-reshape` and `racecar-deploy`.** `racecar-reshape` (the shapes
+  axis) migrates a project's packaging shape from `src/` to `pypkg/src/` with a
+  dry-run-by-default, idempotent path-rewrite that repairs the references the move
+  breaks (relative doc links, `__file__.parents[N]` anchors, the library pyproject);
+  `racecar-upgrade` reuses it. `racecar-deploy` (the faces axis, which stacks on
+  reshape) inserts an `api` cut vertex and then generates a Django 6 ASGI web face over
+  it from one Interface Manifest (the CLI audit tree plus a `[tool.racecar.web_face]`
+  binding plus api signature introspection). The generated app is vertical-first: one
+  Django app per vertical co-locates both faces over a single `commands.py` binding,
+  and a single `apps/mcp.py` is the MCP endpoint. It runs as two ASGI processes, one
+  per face (REST on `api.*`, MCP on `mcp.*`), host-split at boot by per-face settings,
+  behind Apache. REST routes follow `/api/v1/<package>/<vertical-path>/<command>`;
+  write verbs are off by default (`RACECAR_WEB_FACE_ALLOW_WRITES`). The same manifest
+  also renders `docs/api/{manifest.json, openapi.json (OpenAPI 3.1.0), ENDPOINTS.md}`
+  and a sitemap, so the spec cannot drift from the routes, and the OpenAPI document is
+  built from the manifest rather than introspected from views (no DRF).
+- **Doctrine and wiring for the above.** `GENERATION.md` (the generation pipeline, the
+  manifest IR, the MCP wire conformance, the write rail), a `FACES.md` amendment
+  (HTTP-delivered MCP is a route family in the web face, not a standalone `mcp.py`),
+  and an `llm-summary` rule (the web face's endpoints source the brief's external
+  surface from `docs/api/openapi.json` + `ENDPOINTS.md`). `install` and
+  `sync_claude_md` register both skills.
+- **racecar now gates its own changelog against `VERSION`.** A new `make check` step
+  (`scripts/check_changelog.py`) fails when `CHANGELOG.md`'s newest entry does not
+  match `VERSION`, so the per-version record cannot silently fall behind the code (the
+  gap that left 0.10.6, 0.11.0, and 0.12.0 undocumented until now).
+
+### Changed
+- **`PACKAGING.md`'s Django dev-group reconciled to the real dependencies.** The web
+  face validates its generated OpenAPI with `openapi-spec-validator`, not
+  `drf-spectacular`; there is no DRF in the generated app.
+
+### Fixed
+- **`check_dj_model_ref_as_string` no longer mishandles a repo named after its
+  package.** It now excludes the repo root from the package index, so a repo directory
+  sharing the package name cannot shadow the real package under a source root, and it
+  guards non-UTF-8 reads. Previously such a repo could make the check scan `.venv` and
+  crash on a non-UTF-8 dependency file.
+
+## 0.11.0 - 2026-06-24
+
+### Added
+- **The packaging audit now flags a repo whose agent-instruction file never names
+  racecar.** A `CLAUDE.md` / `AGENTS.md` that does not mention racecar is not portably
+  opted in: a clone without the author's global `~/.claude` block sees nothing tying it
+  to racecar. `check_optin` reports this as an advisory Finding. It stays silent when no
+  agent file exists (racecar neither scaffolds nor demands a per-repo `CLAUDE.md`) and
+  does a presence check only, never a path check.
+
+## 0.10.6 - 2026-06-24
+
+### Fixed
+- **The build no longer hard-codes the author's path to the racecar checkout.**
+  `racecar.mk` defaulted `RACECAR_ROOT` to a personal `$(HOME)/dev/...` path that was
+  wrong on every adopter's machine but the author's. It now derives the location from
+  the installed skill symlink (`readlink ~/.claude/skills/racecar`), stays
+  `?=`-overridable, and makes `make sync` fail with a clear message when the checkout
+  cannot be located.
+
 ## 0.10.5 - 2026-06-24
 
 ### Fixed

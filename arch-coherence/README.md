@@ -14,6 +14,7 @@ Run it with `/racecar-arch-coherence`, or `make arch` for the mechanical subset 
 |---|---|
 | [`AXIOMS.md`](AXIOMS.md) | **Start here.** The review lens: the four DAG axioms (acyclicity, direction, layer integrity, depth-plus-one), red flags, feedback format. |
 | [`FACES.md`](FACES.md) | The `lib → api → faces` shape: one library, thin faces, the gated `layers` contract, the advisory orchestration detector. |
+| [`GENERATION.md`](GENERATION.md) | Face generation: deriving a REST + MCP Django ASGI web face from the CLI surface + `api`. The Interface Manifest, the binding, MCP wire conformance. Executed by [`../deploy/SKILL.md`](../deploy/SKILL.md), with the shape prerequisite from [`../reshape/SKILL.md`](../reshape/SKILL.md). |
 | [`PYTHON.md`](PYTHON.md) | Python specifics: module structure, `__init__.py` / `__main__.py` roles, `import-linter` enforcement. |
 | [`DJANGO.md`](DJANGO.md) | Django specifics: service layer, view layering. |
 | [`CLI.md`](CLI.md) | The CLI surface contract: `__main__.py`, `commands()` / `subcommands()` / `parser()`, audit JSON. |

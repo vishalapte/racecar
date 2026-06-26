@@ -304,7 +304,7 @@ dev = [
 
 `pip-tools` is intentionally not on the list: the canon does not include a lockfile-generation workflow (see §5). Projects that want a lockfile install pip-tools themselves or use `pip freeze`.
 
-**Django shapes add two canonical dev tools.** Shapes `pypkg+djapp` and `djapp` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Two entries are racecar-canonical; `check_packaging.py` requires both in the django group for any repo with a `manage.py`. The rest of that group (test, coverage, DRF helpers) is project-choice, not canon.
+**Django shapes add two canonical dev tools.** Shapes `pypkg+djapp` and `djapp` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Two entries are racecar-canonical; `check_packaging.py` requires both in the django group for any repo with a `manage.py`. The rest of that group (test, coverage, web-face tooling like `openapi-spec-validator`) is project-choice, not canon.
 
 - **`djhtml`** — an idempotent, permissively-licensed community-OSS reindenter for Django/Jinja template tags. `black` owns the Python; templates carry no Python to format, so `djhtml` is the template-side counterpart. It runs in `make fmt` / `make fmt-check` gated on `$(DJAPP)` (a no-op in non-Django shapes) and as a `types: [html]` pre-commit hook. `djhtml`, not the heavier `djlint`, is the canon: djlint's reformatter is a louder linter-first tool under a GPL license whose idempotence is empirical rather than structural; `djhtml` only reindents, so its idempotence is by construction.
 - **`pylint-django`** — the community-OSS pylint plugin that teaches pylint the Django ORM (so `Model.objects`, the `Meta` inner class, and the model metaclass stop raising false positives). It is loaded **on the djapp only**: `racecar.mk`'s `lint` target lints `$(SRC)` with the plain library config and lints `$(DJAPP)` with `--load-plugins=pylint_django`. The library is not Django and may not even import it, so the plugin is not loaded over the library tree, and adopters do not hand-edit `[tool.pylint.MAIN].load-plugins` (re-syncing `racecar.mk` is the whole change). Without it the django app lints against the library config and false-positives on every ORM idiom, which kept `make check` red.
@@ -330,8 +330,9 @@ dev = [
 [dependency-groups]
 django = [
     "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
-    "django-debug-toolbar>=4.0",  # local dev; wired in INSTALLED_APPS
-    "drf-spectacular[sidecar]>=0.27",  # OpenAPI schema + Swagger UI (DRF projects)
+    "django-debug-toolbar>=4.0",  # local dev; api face only, DEBUG-gated
+    "django-extensions>=3.2",     # local dev; face-agnostic, DEBUG-gated
+    "openapi-spec-validator>=0.7", # validates the generated OpenAPI doc (racecar-deploy)
     "pylint-django>=2.5",         # suppresses false-positive E1101 on Django model fields
 ]
 ```
@@ -345,7 +346,11 @@ install-dev: install
 	@if grep -qi '"django' $(LIB_PYPROJECT); then $(PIP) install --group $(LIB_PYPROJECT):django; fi
 ```
 
-Projects that do not use DRF may omit `drf-spectacular`. Projects not using debug-toolbar may omit it. `coverage` and `pylint-django` are expected on all djapp-shape projects.
+A racecar-deploy web face generates its OpenAPI document from the Interface
+Manifest (GENERATION.md §"Generated API docs"); `openapi-spec-validator` validates
+it. There is no `drf-spectacular` and no DRF — the spec is not introspected from
+views. Projects not using debug-toolbar or django-extensions may omit them.
+`coverage` and `pylint-django` are expected on all djapp-shape projects.
 
 ## 7. Makefile contract
 

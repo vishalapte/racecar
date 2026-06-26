@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall doctor check-docs check-subsystem-docs check-brief lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -34,6 +34,9 @@ check-docs:
 check-subsystem-docs:
 	$(PYTHON) doc-coherence/scripts/check_subsystem_docs.py
 
+check-changelog:
+	$(PYTHON) scripts/check_changelog.py
+
 check-brief:
 	$(PYTHON) llm-summary/scripts/check_brief.py
 
@@ -51,7 +54,7 @@ lint:
 test:
 	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
 
-check: check-docs check-subsystem-docs lint test check-brief
+check: check-docs check-subsystem-docs check-changelog lint test check-brief
 
 # One-command "see the value" demo. Runs the arch-coherence upward-import check
 # against examples/ — a deliberately-broken sample project (see examples/README.md)

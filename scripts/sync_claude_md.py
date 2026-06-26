@@ -103,6 +103,8 @@ def render_block(racecar_root: Path) -> str:
         f"- code quality / Python-Django hygiene           -> /racecar-eng-review\n"
         f"- docs / drift / link integrity                  -> /racecar-doc-coherence\n"
         f"- repo brief for another LLM                      -> /racecar-llm-summary\n"
+        f"- migrate packaging shape (src -> pypkg/src)       -> /racecar-reshape\n"
+        f"- expose the CLI as a REST API + MCP server       -> /racecar-deploy\n"
         f"- commit + version bump                          -> /racecar-commit\n"
         f"- before committing (dry-run the hooks)          -> /racecar-commit-preflight\n"
         f"- split a working tree into commits              -> /racecar-commit-decompose\n"

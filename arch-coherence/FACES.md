@@ -268,7 +268,14 @@ the thing it watches").
   lands.)
 - **`mcp` is a first-class face with no prior art.** You are defining it; keep
   `mcp_tools` in the surface taxonomy (§8). Reserve `mcp.py`; **materialize it when
-  the face is built — no empty stubs.**
+  the face is built — no empty stubs.** **Amendment (transport-dependent home):**
+  `mcp.py` is the home for a **stdio** tool server. When the mcp face is delivered
+  over **HTTP** (Streamable HTTP, behind a web server), it is a **route family in
+  the web/django face, not a standalone `mcp.py`** — one Django project, launched
+  as two processes (one per face): `api.*` → REST, `mcp.*` → the MCP endpoint,
+  each vhost selecting its face's settings module at boot. See
+  [`GENERATION.md`](GENERATION.md) §4. The discriminator is transport: stdio →
+  `mcp.py`; HTTP → web face.
 - **Borrow Django's good, leave its bad.** Good: convention with overridable
   defaults, scaffolding, explicit-not-magic, app = vertical, name-as-autodiscovery
   contract. Bad: the global mutable settings singleton, active-record leakage,
