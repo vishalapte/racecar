@@ -180,7 +180,7 @@ coverage: ## pytest with branch coverage; HTML report at htmlcov/index.html
 typecheck: ## mypy
 	$(PYTHON) -m mypy --config-file $(LIB_PYPROJECT) $(SRC)
 
-arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + faces gap (+ Django string-relations)
+arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + surface orchestration (+ Django string-relations)
 	$(if $(SERVER),PYTHONPATH=$(SERVER) )$(BIN)/lint-imports --config $(LIB_PYPROJECT)
 	$(PYTHON) scripts/check_upward_imports.py $$(find $(PKG) $(SERVER) -name '*.py')
 	@if [ -n "$$(find $(PKG) -name '__main__.py' -print -quit 2>/dev/null)" ]; then \
@@ -189,7 +189,7 @@ arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + faces gap 
 	  echo "arch: skipping check_cli_commands ($(PKG) has no __main__.py — no CLI surface)"; \
 	fi
 	$(PYTHON) scripts/check_packaging.py
-	$(PYTHON) scripts/check_face_orchestration.py
+	$(PYTHON) scripts/check_surface_orchestration.py
 	@if { [ -n "$(SERVER)" ] && [ -f "$(SERVER)/manage.py" ]; } || [ -f manage.py ]; then \
 	  $(PYTHON) scripts/check_dj_model_ref_as_string.py; \
 	else \

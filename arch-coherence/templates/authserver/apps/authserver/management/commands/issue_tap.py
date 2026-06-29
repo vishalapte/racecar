@@ -15,6 +15,8 @@ from apps.authserver.models import TemporaryAccessPass
 
 
 class Command(BaseCommand):
+    """Issue a single-use, time-limited Temporary Access Pass for a user."""
+
     help = "Issue a single-use, time-limited Temporary Access Pass for a user."
 
     def add_arguments(self, parser):

@@ -262,6 +262,15 @@ def _err(message, status_code):
     return resp
 
 
+class _RequestError(Exception):
+    """Transport-level validation failure carrying the HTTP status to return."""
+
+    def __init__(self, message, status_code):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
 def _coerce_query(schema, query):
     out = {{}}
     for key, spec in schema.get("properties", {{}}).items():
@@ -284,32 +293,43 @@ def _coerce_query(schema, query):
 def _make_view(spec):
     schema = spec["schema"]
 
-    @csrf_exempt
-    async def _view(request):
+    async def _extract(request):
+        """Validate transport input and return the api kwargs, or raise _RequestError.
+
+        Splitting validation out of the view keeps each function's return count low and
+        gives the view one error path (catch _RequestError) plus one success path.
+        """
         if request.method != spec["method"]:
-            return _err("method not allowed", 405)
+            raise _RequestError("method not allowed", 405)
         # Closed by default (AUTH.md): require a valid bearer token carrying this
         # command's scope before anything else. 401 unauthenticated, 403 out-of-scope.
         denied = await sync_to_async(auth.check)(request, spec["scope"])
         if denied:
-            return _err(denied[1], denied[0])
+            raise _RequestError(denied[1], denied[0])
         if spec["write"] and not settings.RACECAR_ALLOW_WRITES:
-            return _err("writes disabled; set RACECAR_ALLOW_WRITES=1", 403)
+            raise _RequestError("writes disabled; set RACECAR_ALLOW_WRITES=1", 403)
         if request.method == "GET":
             try:
-                kwargs = _coerce_query(schema, request.GET)
+                return _coerce_query(schema, request.GET)
             except (ValueError, TypeError) as exc:
-                return _err(f"invalid query parameter: {{exc}}", 400)
-        else:
-            try:
-                kwargs = json.loads(request.body or b"{{}}")
-            except json.JSONDecodeError:
-                return _err("invalid JSON body", 400)
-            if not isinstance(kwargs, dict):
-                return _err("body must be a JSON object", 400)
+                raise _RequestError(f"invalid query parameter: {{exc}}", 400) from exc
+        try:
+            kwargs = json.loads(request.body or b"{{}}")
+        except json.JSONDecodeError as exc:
+            raise _RequestError("invalid JSON body", 400) from exc
+        if not isinstance(kwargs, dict):
+            raise _RequestError("body must be a JSON object", 400)
         missing = [r for r in schema.get("required", []) if r not in kwargs or kwargs[r] is None]
         if missing:
-            return _err(f"missing required: {{missing}}", 400)
+            raise _RequestError(f"missing required: {{missing}}", 400)
+        return kwargs
+
+    @csrf_exempt
+    async def _view(request):
+        try:
+            kwargs = await _extract(request)
+        except _RequestError as exc:
+            return _err(exc.message, exc.status_code)
         try:
             result = await sync_to_async(spec["func"], thread_sensitive=False)(**kwargs)
         except ValueError as exc:

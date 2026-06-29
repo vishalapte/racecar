@@ -4,6 +4,20 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.13.1 - 2026-06-28
+
+### Fixed
+- **The surface generator now emits code that passes racecar's own lint.** Caught by the gfem
+  pilot (the first repo regenerated on 0.13.0): three generator defects that racecar's own
+  `make check` never saw, because it does not lint generated output.
+  - `templates/classic/racecar.mk` still invoked the renamed-away `check_face_orchestration.py`;
+    it now calls `check_surface_orchestration.py` (the 0.13.0 face/surface rename missed the Make
+    template, so `make arch` broke in any regenerated repo).
+  - `scaffold_surfaces.py`'s generated REST view had nine `return` statements, over pylint's
+    default `max-returns` of 6. Request validation is extracted into an `_extract` helper that
+    raises a small `_RequestError`, leaving the view with three returns.
+  - the generated `issue_tap` management `Command` class had no docstring.
+
 ## 0.13.0 - 2026-06-28
 
 ### Changed
